@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Angle Studio — Nano Banana Pro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="frame">
+
+  <!-- ============ CONTROL RAIL ============ -->
+  <aside class="rail">
+    <div class="rail__brand">
+      <span class="rail__mark">🍌</span>
+      <div>
+        <h1>Angle Studio</h1>
+        <p class="rail__sub">Nano Banana Pro · product photo sets</p>
+      </div>
+    </div>
+
+    <div id="providerTabs" class="tabs">
+      <button type="button" class="tab is-active" data-provider="freepik">Freepik / Magnific</button>
+      <button type="button" class="tab" data-provider="google">Google Nano Banana</button>
+    </div>
+
+    <div id="workspaceTabs" class="tabs" style="padding-top:8px">
+      <button type="button" class="tab is-active" data-ws="angles">Angles</button>
+      <button type="button" class="tab" data-ws="lifestyle">Lifestyle</button>
+      <button type="button" class="tab" data-ws="free">Prompt lab</button>
+      <button type="button" class="tab" data-ws="logo">Logo</button>
+      <button type="button" class="tab" data-ws="apparel">Apparel</button>
+    </div>
+
+    <div class="rail__scroll">
+      <section class="panel" id="lifestylePanel" hidden>
+        <header class="panel__head"><span class="panel__num">L</span><h2>Lifestyle photos</h2></header>
+        <p class="panel__hint">Model / lifestyle photos. The item they wear is replaced with your product (from the Reference product section below).</p>
+        <label id="basesDropZone1" class="dropzone" for="basesFileInput">
+          <span class="dropzone__icon">＋</span>
+          <span class="dropzone__text">Drop lifestyle photos</span>
+          <span class="dropzone__meta">JPG / PNG · up to 30</span>
+        </label>
+        <div class="spec-row" style="margin-top:10px">
+          <label class="spec-field">
+            <span>Replace</span>
+            <select id="categorySelect">
+              <option value="shoes" selected>Shoes</option>
+              <option value="top">Top</option>
+              <option value="bottoms">Bottoms</option>
+              <option value="dress">Dress</option>
+              <option value="bag">Bag</option>
+              <option value="other">Other…</option>
+            </select>
+          </label>
+        </div>
+        <input id="categoryOther" type="text" placeholder="What to replace, e.g. sunglasses" style="margin-top:8px; display:none">
+      </section>
+
+      <section class="panel" id="apparelPanel" hidden>
+        <header class="panel__head"><span class="panel__num">Ap</span><h2>Apparel</h2></header>
+        <p class="panel__hint">1 · Style reference (optional) — one professional photo showing the finish, background and lighting you want. Only the photography quality is copied from it, never the garment.</p>
+        <label id="basesDropZone4" class="dropzone" for="basesFileInput">
+          <span class="dropzone__icon">＋</span>
+          <span class="dropzone__text">Drop angle / style references</span>
+          <span class="dropzone__meta">JPG / PNG · up to 30</span>
+        </label>
+        <p class="panel__hint" style="margin:12px 0 6px">2 · Background (optional). Leave empty to use each reference photo's own background.</p>
+        <label class="dropzone" for="bgFileInput" style="padding:12px">
+          <span class="dropzone__text">Add background image</span>
+          <span class="dropzone__meta">PNG / JPG · 1 file</span>
+        </label>
+        <input id="bgFileInput" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+        <div id="bgPreview" class="ref-previews"></div>
+        <p class="panel__hint" style="margin:12px 0 6px">Label text (exact) — what your labels say, e.g. Menina Step</p>
+        <input id="brandTextInput" type="text" placeholder="Menina Step">
+        <p class="panel__hint" style="margin:12px 0 6px">Real label crops (optional, up to 4) — tight crops of each label from your photos. They are pasted onto the result pixel-perfect, so the logo is always exact.</p>
+        <label class="dropzone" for="labelsFileInput" style="padding:12px">
+          <span class="dropzone__text">Add label crops</span>
+          <span class="dropzone__meta">PNG / JPG · up to 4</span>
+        </label>
+        <input id="labelsFileInput" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden>
+        <div id="labelsPreview" class="ref-previews"></div>
+        <div class="spec-row" style="margin-top:8px">
+          <label class="spec-field">
+            <span>Logo on labels</span>
+            <select id="logoModeSelect">
+              <option value="replace" selected>Replace with my logo (text only)</option>
+              <option value="keep">Keep existing, sharpen</option>
+            </select>
+          </label>
+          <label class="spec-field">
+            <span>Paste real labels</span>
+            <select id="labelOverlaySelect">
+              <option value="on" selected>On</option>
+              <option value="off">Off</option>
+            </select>
+          </label>
+        </div>
+        <p class="panel__hint" style="margin-top:12px">3 · Your product photos go in the Reference product section below — EACH product photo becomes one finished frame (its shape, labels and logo are kept exactly; only background, wrinkles, tags and lighting are fixed). Add your logo there too so label artwork stays crisp.</p>
+      </section>
+
+      <section class="panel" id="logoPanel" hidden>
+        <header class="panel__head"><span class="panel__num">Lg</span><h2>Logo swap</h2></header>
+        <p class="panel__hint">Upload 5–6 product images below, and your logo in the Brand logo upload. Each image is edited one by one: the existing logo is replaced with yours (or your logo is added if there is none). Nothing else is changed.</p>
+        <p class="panel__hint" style="margin-bottom:6px">1 · Your logo</p>
+        <label class="dropzone" for="logoFileInput" style="padding:12px; margin-bottom:12px">
+          <span class="dropzone__text">Add logo image</span>
+          <span class="dropzone__meta">PNG / JPG · 1 file</span>
+        </label>
+        <div id="logoPreview2" class="ref-previews" style="margin-bottom:12px"></div>
+        <p class="panel__hint" style="margin-bottom:6px">2 · Logo colour</p>
+        <div class="spec-row" style="margin-bottom:12px">
+          <label class="spec-field">
+            <span>Colour</span>
+            <select id="logoColorSelect">
+              <option value="white" selected>White</option>
+              <option value="silver">Silver (metallic)</option>
+              <option value="black">Black</option>
+              <option value="red">Red</option>
+              <option value="gold">Gold (metallic)</option>
+            </select>
+          </label>
+        </div>
+        <p class="panel__hint" style="margin-bottom:6px">3 · Images to edit</p>
+        <label id="basesDropZone3" class="dropzone" for="basesFileInput">
+          <span class="dropzone__icon">＋</span>
+          <span class="dropzone__text">Drop product images</span>
+          <span class="dropzone__meta">JPG / PNG · up to 30</span>
+        </label>
+      </section>
+
+      <section class="panel" id="freePanel" hidden>
+        <header class="panel__head"><span class="panel__num">P</span><h2>Prompt lab</h2></header>
+        <p class="panel__hint">Sample photos + your product photos + your prompt, sent exactly as written. Type @ to insert a photo reference.</p>
+        <label id="basesDropZone2" class="dropzone" for="basesFileInput">
+          <span class="dropzone__icon">＋</span>
+          <span class="dropzone__text">Drop sample photos</span>
+          <span class="dropzone__meta">JPG / PNG · up to 30</span>
+        </label>
+        <textarea id="freePromptInput" rows="5" style="margin-top:10px" placeholder="e.g. Edit @sample photo 1 — keep the scene, replace the shoes with my product from @product photo 1. Type @ for the photo menu."></textarea>
+        <div id="mentionMenu" class="mention-menu" hidden></div>
+      </section>
+
+      <input id="basesFileInput" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden>
+      <div id="basesThumbsHost"></div>
+      <section class="panel panel--google" id="googlePanel" hidden>
+        <header class="panel__head"><span class="panel__num">G</span><h2>Google API key</h2></header>
+        <p class="panel__hint">Official Gemini image API. Key is stored only in this browser and sent to your local server.</p>
+        <input id="googleKeyInput" type="password" placeholder="AIza…" autocomplete="off">
+        <div class="spec-row" style="margin-top:8px">
+          <label class="spec-field">
+            <span>Google model</span>
+            <select id="googleModelSelect">
+              <option value="gemini-3-pro-image-preview" selected>Nano Banana Pro (up to 4K)</option>
+              <option value="gemini-3.1-flash-image-preview">Nano Banana 2 (fast, 1K)</option>
+              <option value="gemini-2.5-flash-image">Nano Banana (1K)</option>
+            </select>
+          </label>
+        </div>
+      </section>
+
+      <!-- STEP 01 -->
+      <section class="panel">
+        <header class="panel__head"><span class="panel__num">01</span><h2>Angle references</h2></header>
+        <p class="panel__hint">Upload one example photo per angle you want. Each is described in words (camera angle and composition only) and the photo itself is never sent, so nothing from it can leak into your images.</p>
+        <label id="angleDropZone" class="dropzone" for="angleFileInput">
+          <span class="dropzone__icon">＋</span>
+          <span class="dropzone__text">Drop angle photos or click to upload</span>
+          <span class="dropzone__meta">JPG / PNG · up to 8 images</span>
+        </label>
+        <input id="angleFileInput" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden>
+        <div id="angleThumbs" class="angle-previews"></div>
+      </section>
+
+      <!-- STEP 02 -->
+      <section class="panel">
+        <header class="panel__head"><span class="panel__num">02</span><h2>Reference product</h2></header>
+        <p class="panel__hint">Up to 6 photos of the actual product, different angles if possible. All of them are sent with every frame so the model learns the product properly.</p>
+        <label id="dropZone" class="dropzone" for="fileInput">
+          <span class="dropzone__icon">＋</span>
+          <span class="dropzone__text">Drop photos or click to upload</span>
+          <span class="dropzone__meta">JPG / PNG · up to 6 images</span>
+        </label>
+        <input id="fileInput" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden>
+        <div id="refPreviews" class="ref-previews"></div>
+        <div style="margin-top:14px">
+          <p class="panel__hint" style="margin-bottom:6px">Brand logo (optional). If you add one it is reproduced exactly; if you leave it empty, no logo or text is drawn at all.</p>
+          <label id="logoDropZone" class="dropzone" for="logoFileInput" style="padding:12px">
+            <span class="dropzone__text">Add logo image</span>
+            <span class="dropzone__meta">PNG / JPG · 1 file</span>
+          </label>
+          <input id="logoFileInput" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+          <div id="logoPreview" class="ref-previews"></div>
+        </div>
+        <div style="margin-top:14px">
+          <p class="panel__hint" style="margin-bottom:6px">Heel reference (optional). A photo showing only the heel / back shape of your product — used to get the heel height and profile right (e.g. flat jelly heel). Not treated as a product photo.</p>
+          <label id="heelDropZone" class="dropzone" for="heelFileInput" style="padding:12px">
+            <span class="dropzone__text">Add heel reference</span>
+            <span class="dropzone__meta">PNG / JPG · 1 file</span>
+          </label>
+          <input id="heelFileInput" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+          <div id="heelPreview" class="ref-previews"></div>
+        </div>
+      </section>
+
+      <!-- STEP 03 -->
+      <section class="panel">
+        <header class="panel__head"><span class="panel__num">03</span><h2>Brief (optional)</h2></header>
+        <p class="panel__hint">Optional product facts only (material, colour, construction). Leave empty if the photos say it all. Never describe background or lighting here.</p>
+        <textarea id="promptInput" rows="3" placeholder="Optional. Only product facts, e.g. black full-grain leather penny loafer, lug sole. Do NOT describe background or lighting here."></textarea>
+      </section>
+
+      <!-- SPECS -->
+      <section class="panel">
+        <header class="panel__head"><span class="panel__num">04</span><h2>Output spec</h2></header>
+        <div class="spec-row" style="margin-bottom:8px">
+          <label class="spec-field">
+            <span>Run</span>
+            <select id="runModeSelect">
+              <option value="parallel" selected>All angles at once</option>
+              <option value="sequential">One at a time</option>
+            </select>
+          </label>
+          <label class="spec-field">
+            <span>Per angle</span>
+            <select id="perAngleSelect">
+              <option value="1">1 image</option>
+              <option value="2" selected>2 images</option>
+              <option value="3">3 images</option>
+              <option value="4">4 images</option>
+              <option value="5">5 images</option>
+              <option value="6">6 images</option>
+              <option value="8">8 images</option>
+              <option value="10">10 images</option>
+            </select>
+          </label>
+          <label class="spec-field">
+            <span>Post-process</span>
+            <select id="postProcessSelect">
+              <option value="off" selected>Off (raw output)</option>
+              <option value="on">On (white / grey clean)</option>
+            </select>
+          </label>
+          <label class="spec-field">
+            <span>Angle guide</span>
+            <select id="guideModeSelect">
+              <option value="describe">Angle only (text)</option>
+              <option value="style" selected>Reference photo: angle + bg + shadow</option>
+              <option value="none">Label text only</option>
+              <option value="silhouette">Silhouette image</option>
+              <option value="sketch">Greyscale photo</option>
+              <option value="photo">Original photo</option>
+            </select>
+          </label>
+        </div>
+        <div class="spec-row">
+          <label class="spec-field" id="freepikModelField">
+            <span>Model</span>
+            <select id="modelSelect">
+              <option value="nano-banana-pro" selected>Nano Banana Pro (best quality)</option>
+              <option value="nano-banana-pro-flash">Nano Banana Pro Flash (faster)</option>
+            </select>
+          </label>
+          <label class="spec-field">
+            <span>Aspect</span>
+            <select id="aspectSelect">
+              <option value="4:5" selected>4:5 — Nordstrom</option>
+              <option value="auto">Auto — match the photo</option>
+              <option value="1:1">1:1 — Square</option>
+              <option value="3:4">3:4</option>
+              <option value="2:3">2:3</option>
+              <option value="3:2">3:2</option>
+              <option value="16:9">16:9</option>
+            </select>
+          </label>
+          <label class="spec-field">
+            <span>Resolution</span>
+            <select id="resolutionSelect">
+              <option value="2K" selected>2K (75 cr)</option>
+              <option value="4K">4K (150 cr)</option>
+              <option value="1K">1K (75 cr)</option>
+            </select>
+          </label>
+        </div>
+      </section>
+
+    </div>
+
+    <div class="rail__footer">
+      <div id="statusLine" class="status-line">Ready.</div>
+      <button id="generateBtn" class="btn btn--primary" type="button">Develop set</button>
+    </div>
+  </aside>
+
+  <!-- ============ CONTACT SHEET ============ -->
+  <main class="sheet">
+    <header class="sheet__head">
+      <div>
+        <h2>Contact sheet</h2>
+        <p id="sheetSub">Add angle references and a product photo, then press <em>Develop set</em>. Frames develop one at a time, in order.</p>
+      </div>
+      <button id="downloadAllBtn" class="btn btn--ghost" type="button" hidden>Download all (.zip)</button>
+    </header>
+
+    <div id="sheetGrid" class="sheet__grid"></div>
+  </main>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
