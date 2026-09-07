@@ -501,7 +501,7 @@
     // APPAREL_EDIT_V2: apparel edits each product photo; style refs are optional
     if (workspace !== 'apparel' && !state.baseFiles.length) return setStatus(workspace === 'lifestyle' ? 'Upload lifestyle photos first.' : (workspace === 'logo' || workspace === 'recolor') ? 'Upload the product images to edit.' : 'Upload sample photos first.', 'is-error');
     if (workspace === 'logo' && !state.logoFile) return setStatus('Upload your logo (Brand logo upload).', 'is-error');
-    if (workspace !== 'logo' && !state.refFiles.length) return setStatus('Upload product photos too.', 'is-error');
+    if (workspace !== 'logo' && workspace !== 'recolor' && !state.refFiles.length) return setStatus('Upload product photos too.', 'is-error');
     if (workspace === 'free' && !freePromptInput.value.trim()) return setStatus('Write your prompt (type @ to reference photos).', 'is-error');
     generateBtn.disabled = true;
     const resolution = resolutionSelect.value;
