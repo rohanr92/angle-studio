@@ -34,6 +34,7 @@
       <button type="button" class="tab" data-ws="free">Prompt lab</button>
       <button type="button" class="tab" data-ws="logo">Logo</button>
       <button type="button" class="tab" data-ws="apparel">Apparel</button>
+      <button type="button" class="tab" data-ws="recolor">Recolor</button>
     </div>
 
     <div class="rail__scroll">
@@ -59,6 +60,43 @@
           </label>
         </div>
         <input id="categoryOther" type="text" placeholder="What to replace, e.g. sunglasses" style="margin-top:8px; display:none">
+      </section>
+
+      <section class="panel" id="recolorPanel" hidden>
+        <header class="panel__head"><span class="panel__num">Rc</span><h2>Recolor a part</h2></header>
+        <p class="panel__hint">Upload product images below. Only the selected part changes colour — everything else stays exactly the same.</p>
+        <div class="spec-row" style="margin-bottom:8px">
+          <label class="spec-field">
+            <span>Part</span>
+            <select id="recolorPartSelect">
+              <option value="buckle" selected>Buckle / hardware</option>
+              <option value="shoe">Whole shoe</option>
+              <option value="sole">Sole</option>
+              <option value="strap">Strap(s)</option>
+              <option value="laces">Laces</option>
+              <option value="heel">Heel</option>
+              <option value="other">Other…</option>
+            </select>
+          </label>
+          <label class="spec-field">
+            <span>New colour</span>
+            <select id="recolorColorSelect">
+              <option value="gold" selected>Gold (metallic)</option>
+              <option value="silver">Silver (metallic)</option>
+              <option value="black">Black</option>
+              <option value="white">White</option>
+              <option value="red">Red</option>
+              <option value="other">Custom…</option>
+            </select>
+          </label>
+        </div>
+        <input id="recolorPartOther" type="text" placeholder="Which part, e.g. the bow on the toe" style="margin-bottom:8px; display:none">
+        <input id="recolorColorOther" type="text" placeholder="Colour, e.g. rose gold / navy blue" style="margin-bottom:8px; display:none">
+        <label id="basesDropZone5" class="dropzone" for="basesFileInput">
+          <span class="dropzone__icon">＋</span>
+          <span class="dropzone__text">Drop product images</span>
+          <span class="dropzone__meta">JPG / PNG · up to 30</span>
+        </label>
       </section>
 
       <section class="panel" id="apparelPanel" hidden>

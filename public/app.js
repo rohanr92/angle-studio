@@ -375,6 +375,13 @@
   const lifestylePanel = document.getElementById('lifestylePanel');
   const freePanel = document.getElementById('freePanel');
   const logoPanel = document.getElementById('logoPanel');
+  const recolorPanel = document.getElementById('recolorPanel');
+  const recolorPartSelect = document.getElementById('recolorPartSelect');
+  const recolorColorSelect = document.getElementById('recolorColorSelect');
+  const recolorPartOther = document.getElementById('recolorPartOther');
+  const recolorColorOther = document.getElementById('recolorColorOther');
+  recolorPartSelect.addEventListener('change', () => { recolorPartOther.style.display = recolorPartSelect.value === 'other' ? '' : 'none'; });
+  recolorColorSelect.addEventListener('change', () => { recolorColorOther.style.display = recolorColorSelect.value === 'other' ? '' : 'none'; });
   const apparelPanel = document.getElementById('apparelPanel');
   const bgFileInput = document.getElementById('bgFileInput');
   const bgPreviewEl = document.getElementById('bgPreview');
@@ -441,6 +448,7 @@
     lifestylePanel.hidden = ws !== 'lifestyle';
     freePanel.hidden = ws !== 'free';
     logoPanel.hidden = ws !== 'logo';
+    recolorPanel.hidden = ws !== 'recolor';
     apparelPanel.hidden = ws !== 'apparel';
     const productSection = refPreviewsEl.closest('section');
     const briefSection = promptInput.closest('section');
@@ -491,7 +499,7 @@
 
   async function runEditSet() {
     // APPAREL_EDIT_V2: apparel edits each product photo; style refs are optional
-    if (workspace !== 'apparel' && !state.baseFiles.length) return setStatus(workspace === 'lifestyle' ? 'Upload lifestyle photos first.' : workspace === 'logo' ? 'Upload the product images to edit.' : 'Upload sample photos first.', 'is-error');
+    if (workspace !== 'apparel' && !state.baseFiles.length) return setStatus(workspace === 'lifestyle' ? 'Upload lifestyle photos first.' : (workspace === 'logo' || workspace === 'recolor') ? 'Upload the product images to edit.' : 'Upload sample photos first.', 'is-error');
     if (workspace === 'logo' && !state.logoFile) return setStatus('Upload your logo (Brand logo upload).', 'is-error');
     if (workspace !== 'logo' && !state.refFiles.length) return setStatus('Upload product photos too.', 'is-error');
     if (workspace === 'free' && !freePromptInput.value.trim()) return setStatus('Write your prompt (type @ to reference photos).', 'is-error');
@@ -530,7 +538,9 @@
             body: JSON.stringify({
               referenceId, baseIndex: idx, variant: v, resolution, provider, model, googleApiKey, aspectRatio: aspectSelect.value,
               brandText: (document.getElementById('brandTextInput') || { value: '' }).value, labelOverlay: (document.getElementById('labelOverlaySelect') || { value: 'on' }).value, logoMode: (document.getElementById('logoModeSelect') || { value: 'replace' }).value,
-              mode: workspace === 'free' ? 'free' : workspace === 'logo' ? 'logo' : workspace === 'apparel' ? 'apparel' : 'swap',
+              mode: workspace === 'free' ? 'free' : workspace === 'logo' ? 'logo' : workspace === 'apparel' ? 'apparel' : workspace === 'recolor' ? 'recolor' : 'swap',
+              part: (recolorPartSelect || { value: 'buckle' }).value, partLabel: (recolorPartOther || { value: '' }).value.trim(),
+              color: (recolorColorSelect || { value: 'gold' }).value, colorLabel: (recolorColorOther || { value: '' }).value.trim(),
               logoColor: (document.getElementById('logoColorSelect') || { value: 'white' }).value,
               category: categorySelect.value, categoryLabel: categoryOther.value.trim(),
               prompt: workspace === 'free' ? freePromptInput.value.trim() : (promptInput.value || '').trim(),

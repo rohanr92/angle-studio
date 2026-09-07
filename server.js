@@ -879,6 +879,7 @@ app.post('/api/edit', async (req, res) => {
       referenceId, baseIndex, mode = 'swap', category = 'shoes', categoryLabel = '',
       prompt = '', variant = 1, resolution = '2k', logoColor = 'white', aspectRatio = 'auto', // PATCH34
       brandText = '', labelOverlay = 'on', logoMode = 'replace',
+      part = 'buckle', partLabel = '', color = 'gold', colorLabel = '',
       provider = 'google', model = 'gemini-3-pro-image-preview', googleApiKey = '',
     } = req.body || {};
     const entry = referenceStore.get(referenceId);
@@ -888,7 +889,7 @@ app.post('/api/edit', async (req, res) => {
     const base = isApparel ? (entry.product && entry.product[Number(baseIndex)]) : (entry.bases && entry.bases[Number(baseIndex)]);
     if (!base) return res.status(400).json({ error: 'No ' + (isApparel ? 'product' : 'sample') + ' photo at index ' + baseIndex });
     const styleRef = isApparel ? (entry.bases && entry.bases[0]) : null;
-    if (mode !== 'logo' && !entry.product.length) return res.status(400).json({ error: 'Upload product photos too.' });
+    if (mode !== 'logo' && mode !== 'recolor' && !entry.product.length) return res.status(400).json({ error: 'Upload product photos too.' });
 
     await acquireSlot(); slotHeld = true;
     const P = entry.product.length;
@@ -896,7 +897,29 @@ app.post('/api/edit', async (req, res) => {
     const cat = catNames[category] || catNames.shoes;
 
     let instruction;
-    if (mode === 'apparel') {
+    if (mode === 'recolor') {
+      const PARTS = {
+        buckle: 'the buckle and all small metal hardware (buckles, rings, studs, eyelets)',
+        shoe: 'the entire shoe/upper (every panel of the shoe body)',
+        sole: 'the sole only (outsole and midsole edge)',
+        strap: 'the strap(s) only',
+        laces: 'the laces only',
+        heel: 'the heel only',
+        other: partLabel || 'the selected part',
+      };
+      const COLORS = {
+        gold: 'metallic GOLD with a realistic polished gold finish and natural reflections',
+        silver: 'metallic SILVER with a realistic polished finish and natural reflections',
+        black: 'BLACK, matching a natural factory finish for that material',
+        white: 'WHITE, matching a natural factory finish for that material',
+        red: 'RED, matching a natural factory finish for that material',
+        other: colorLabel ? colorLabel + ', rendered as a natural factory finish for that material' : 'the requested colour',
+      };
+      const partText = PARTS[String(part)] || PARTS.buckle;
+      const colorText = COLORS[String(color)] || COLORS.gold;
+      instruction = 'Edit sample photo 1. Keep absolutely everything in the photo identical — the product, its shape, material, texture, stitching, the background, lighting, shadows and reflections. Change ONLY the colour of ' + partText + ': recolour it to ' + colorText + '. The part keeps its exact shape, size, texture and position; every other part of the product and the image stays untouched, with no colour bleeding onto neighbouring parts. If the photo shows a pair, recolour that part on BOTH items identically. Output one photorealistic image only.';
+      if (String(prompt).trim()) instruction += ' Extra instructions: ' + String(prompt).trim();
+    } else if (mode === 'apparel') {
       instruction = [
         'Edit image 1 (my product photo). This is a professional retouching job, NOT a re-creation.',
         String(logoMode) === 'replace'
