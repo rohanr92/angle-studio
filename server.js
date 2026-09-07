@@ -880,6 +880,7 @@ app.post('/api/edit', async (req, res) => {
       prompt = '', variant = 1, resolution = '2k', logoColor = 'white', aspectRatio = 'auto', // PATCH34
       brandText = '', labelOverlay = 'on', logoMode = 'replace',
       part = 'buckle', partLabel = '', color = 'gold', colorLabel = '',
+      fit = 'product', fitLabel = '', bottomsStyle = 'product', bottomsLabel = '', logosOpt = 'keep',
       provider = 'google', model = 'gemini-3-pro-image-preview', googleApiKey = '',
     } = req.body || {};
     const entry = referenceStore.get(referenceId);
@@ -960,7 +961,36 @@ app.post('/api/edit', async (req, res) => {
       if (!String(prompt).trim()) throw new Error('Write your prompt — it is sent exactly as written.');
       instruction = String(prompt).trim();
     } else {
-      instruction = `Edit sample photo 1. Keep absolutely everything the same — the person, face, pose, skin, hair, all other clothing, the background, lighting, colours and shadows. Replace ONLY the ${cat} worn in the photo with my product shown in product photo${P > 1 ? 's 1 to ' + P : ' 1'}. My product must be reproduced exactly: same shape, colour, material and details as in the product photos, fitted naturally on the person with correct perspective, size and lighting for the scene. Output one photorealistic image only.`;
+      const FITS = {
+        product: 'CRITICAL — FIT COMES FROM MY PRODUCT, NOT FROM THE ORIGINAL GARMENT: reproduce the exact fit, cut and silhouette of my product as shown in the product photos. If my product is relaxed or loose, it must look relaxed and loose on the model with natural drape and ease — do NOT make it slim or body-hugging just because the original garment in the photo was fitted. If my product is slim, keep it slim.',
+        relaxed: 'FIT: the garment must fit RELAXED — loose with comfortable ease and natural drape, not clinging to the body.',
+        slight: 'FIT: the garment must fit SLIGHTLY RELAXED — a little ease, gently skimming the body.',
+        oversized: 'FIT: the garment must fit OVERSIZED / VERY RELAXED — clearly loose and roomy with heavy drape.',
+        slim: 'FIT: the garment must fit SLIM — close to the body but not skin-tight.',
+        fitted: 'FIT: the garment must fit BODY-FITTED — hugging the body closely.',
+        layered: 'FIT: style it slightly LAYERED, worn naturally over/with the other clothing as appropriate.',
+        other: fitLabel ? 'FIT: ' + fitLabel : '',
+      };
+      const BSTYLES = {
+        product: '',
+        high: 'BOTTOMS STYLE: HIGH-WAISTED — the waistband sits high on the waist.',
+        straight: 'BOTTOMS STYLE: STRAIGHT LEG from hip to hem.',
+        flare: 'BOTTOMS STYLE: FLARE — fitted through the thigh, widening from the knee.',
+        bootcut: 'BOTTOMS STYLE: BOOTCUT — slight flare from the knee over the shoe.',
+        wide: 'BOTTOMS STYLE: WIDE LEG — loose and wide from hip to hem.',
+        skinny: 'BOTTOMS STYLE: SKINNY — tight through the whole leg.',
+        other: bottomsLabel ? 'BOTTOMS STYLE: ' + bottomsLabel : '',
+      };
+      const fitText = FITS[String(fit)] !== undefined ? FITS[String(fit)] : FITS.product;
+      const bText = BSTYLES[String(bottomsStyle)] !== undefined ? BSTYLES[String(bottomsStyle)] : '';
+      const logosText = String(logosOpt) === 'remove'
+        ? 'LOGOS: remove every visible brand logo, brand label, hem tag, side tag, patch, button logo, embroidery or brand text from the garment — it must look completely plain and unbranded.'
+        : 'LOGOS AND LABELS: keep every logo, label, hem tag and marking exactly as it appears on my product in the product photos — do not remove or invent any.';
+      instruction = [
+        `Edit sample photo 1. Keep absolutely everything the same — the person, face, pose, skin, hair, all other clothing, the background, lighting, colours and shadows. Replace ONLY the ${cat} worn in the photo with my product shown in product photo${P > 1 ? 's 1 to ' + P : ' 1'}. My product must be reproduced exactly: same shape, colour, material, texture and details as in the product photos, with correct perspective, size and lighting for the scene.`,
+        fitText, bText, logosText,
+        'Output one photorealistic image only.',
+      ].filter(Boolean).join(' ');
       if (String(prompt).trim()) instruction += ' Extra instructions: ' + String(prompt).trim();
     }
 

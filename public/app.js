@@ -420,6 +420,13 @@
   state.baseFiles = [];
 
   categorySelect.addEventListener('change', () => { categoryOther.style.display = categorySelect.value === 'other' ? '' : 'none'; });
+  const fitSelect = document.getElementById('fitSelect');
+  const bottomsStyleSelect = document.getElementById('bottomsStyleSelect');
+  const fitOther = document.getElementById('fitOther');
+  const bottomsOther = document.getElementById('bottomsOther');
+  const logosOptSelect = document.getElementById('logosOptSelect');
+  fitSelect.addEventListener('change', () => { fitOther.style.display = fitSelect.value === 'other' ? '' : 'none'; });
+  bottomsStyleSelect.addEventListener('change', () => { bottomsOther.style.display = bottomsStyleSelect.value === 'other' ? '' : 'none'; });
 
   function renderBases() {
     basesThumbsHost.innerHTML = '';
@@ -543,6 +550,9 @@
               color: (recolorColorSelect || { value: 'gold' }).value, colorLabel: (recolorColorOther || { value: '' }).value.trim(),
               logoColor: (document.getElementById('logoColorSelect') || { value: 'white' }).value,
               category: categorySelect.value, categoryLabel: categoryOther.value.trim(),
+              fit: fitSelect.value, fitLabel: fitOther.value.trim(),
+              bottomsStyle: bottomsStyleSelect.value, bottomsLabel: bottomsOther.value.trim(),
+              logosOpt: logosOptSelect.value,
               prompt: workspace === 'free' ? freePromptInput.value.trim() : (promptInput.value || '').trim(),
             }),
           });
