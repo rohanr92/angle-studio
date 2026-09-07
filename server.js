@@ -963,12 +963,14 @@ app.post('/api/edit', async (req, res) => {
     } else {
       const FITS = {
         product: 'CRITICAL — FIT COMES FROM MY PRODUCT, NOT FROM THE ORIGINAL GARMENT: reproduce the exact fit, cut and silhouette of my product as shown in the product photos. If my product is relaxed or loose, it must look relaxed and loose on the model with natural drape and ease — do NOT make it slim or body-hugging just because the original garment in the photo was fitted. If my product is slim, keep it slim.',
-        relaxed: 'FIT: the garment must fit RELAXED — loose with comfortable ease and natural drape, not clinging to the body.',
-        slight: 'FIT: the garment must fit SLIGHTLY RELAXED — a little ease, gently skimming the body.',
-        oversized: 'FIT: the garment must fit OVERSIZED / VERY RELAXED — clearly loose and roomy with heavy drape.',
-        slim: 'FIT: the garment must fit SLIM — close to the body but not skin-tight.',
-        fitted: 'FIT: the garment must fit BODY-FITTED — hugging the body closely.',
-        layered: 'FIT: style it slightly LAYERED, worn naturally over/with the other clothing as appropriate.',
+        notrelaxed: 'FIT: NOT RELAXED — a clean regular fit with minimal ease, following the body without hugging it.',
+        slight: 'FIT: SLIGHTLY RELAXED — just a little ease, gently skimming the body with a soft drape.',
+        relaxed: 'FIT: RELAXED — clearly loose with comfortable ease and natural drape, not clinging to the body anywhere.',
+        toorelaxed: 'FIT: TOO RELAXED / OVERSIZED — very loose and roomy, generous volume, heavy drape, sleeves and body clearly wider than the person.',
+        slim: 'FIT: SLIM — close to the body but not skin-tight.',
+        fitted: 'FIT: BODY-FITTED — hugging the body closely, following its shape.',
+        layered: 'FIT: LAYER RELAXED — relaxed with a layered look, worn naturally with soft volume over the other clothing.',
+        oversized: 'FIT: OVERSIZED — clearly loose and roomy with heavy drape.',
         other: fitLabel ? 'FIT: ' + fitLabel : '',
       };
       const BSTYLES = {
