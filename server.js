@@ -881,6 +881,7 @@ app.post('/api/edit', async (req, res) => {
       brandText = '', labelOverlay = 'on', logoMode = 'replace',
       part = 'buckle', partLabel = '', color = 'gold', colorLabel = '',
       fit = 'product', fitLabel = '', bottomsStyle = 'product', bottomsLabel = '', logosOpt = 'keep',
+      bgChoice = 'white', bgCustom = '', shadowSrc = 'auto',
       provider = 'google', model = 'gemini-3-pro-image-preview', googleApiKey = '',
     } = req.body || {};
     const entry = referenceStore.get(referenceId);
@@ -890,7 +891,7 @@ app.post('/api/edit', async (req, res) => {
     const base = isApparel ? (entry.product && entry.product[Number(baseIndex)]) : (entry.bases && entry.bases[Number(baseIndex)]);
     if (!base) return res.status(400).json({ error: 'No ' + (isApparel ? 'product' : 'sample') + ' photo at index ' + baseIndex });
     const styleRef = isApparel ? (entry.bases && entry.bases[0]) : null;
-    if (mode !== 'logo' && mode !== 'recolor' && !entry.product.length) return res.status(400).json({ error: 'Upload product photos too.' });
+    if (mode !== 'logo' && mode !== 'recolor' && mode !== 'bg' && !entry.product.length) return res.status(400).json({ error: 'Upload product photos too.' });
 
     await acquireSlot(); slotHeld = true;
     const P = entry.product.length;
@@ -898,7 +899,27 @@ app.post('/api/edit', async (req, res) => {
     const cat = catNames[category] || catNames.shoes;
 
     let instruction;
-    if (mode === 'recolor') {
+    if (mode === 'bg') {
+      const hasRef = !!entry.bg;
+      const BGS = {
+        white: 'a clean, seamless, pure WHITE (#FFFFFF) studio background, perfectly uniform edge to edge',
+        grey: 'a clean, seamless, light grey (#F8F8F8) studio background, perfectly uniform edge to edge',
+        custom: bgCustom ? 'a clean, seamless, uniform studio background in this colour: ' + bgCustom : 'a clean, seamless, uniform studio background',
+        ref: hasRef ? 'the exact background shown in the background reference image (same colour, tone and gradient)' : 'a clean, seamless, pure WHITE (#FFFFFF) studio background',
+      };
+      const bgText = BGS[String(bgChoice)] || BGS.white;
+      const shText = String(shadowSrc) === 'ref' && hasRef
+        ? 'SHADOW: copy the shadow style from the background reference image — same shape, softness, direction and strength, applied naturally under my product.'
+        : 'SHADOW: add a soft, professional, natural contact shadow directly under the product where it touches the ground, like premium Nordstrom studio product photography — subtle and tight, no long cast shadow, no floating look.';
+      instruction = [
+        'Edit sample photo 1 (my product photo). This is a background replacement only, NOT a re-creation.',
+        'KEEP THE PRODUCT PIXEL-IDENTICAL: same shape, colours, materials, texture, stitching, logos, labels and every detail, same position, same angle, same size in frame. Do not redraw or restyle the product in any way.',
+        'BACKGROUND: remove the current background completely — including any old background problems, uneven colour, marks, cut-out halos, props, hands or surfaces — and replace it with ' + bgText + '.',
+        shText,
+        'Lighting on the product stays as photographed, just cleanly separated from the new background. Output one photorealistic image only.',
+      ].join(' ');
+      if (String(prompt).trim()) instruction += ' Extra instructions: ' + String(prompt).trim();
+    } else if (mode === 'recolor') {
       const PARTS = {
         buckle: 'the buckle and all small metal hardware (buckles, rings, studs, eyelets)',
         shoe: 'the entire shoe/upper (every panel of the shoe body)',

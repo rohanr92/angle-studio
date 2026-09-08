@@ -376,6 +376,24 @@
   const freePanel = document.getElementById('freePanel');
   const logoPanel = document.getElementById('logoPanel');
   const recolorPanel = document.getElementById('recolorPanel');
+  const bgPanel = document.getElementById('bgPanel');
+  const bgChoiceSelect = document.getElementById('bgChoiceSelect');
+  const shadowSrcSelect = document.getElementById('shadowSrcSelect');
+  const bgCustomInput = document.getElementById('bgCustomInput');
+  const bgRefInput = document.getElementById('bgRefInput');
+  const bgRefPreviewEl = document.getElementById('bgRefPreview');
+  state.bgRefFile = null;
+  bgChoiceSelect.addEventListener('change', () => { bgCustomInput.style.display = bgChoiceSelect.value === 'custom' ? '' : 'none'; });
+  function renderBgRef() {
+    bgRefPreviewEl.innerHTML = '';
+    if (!state.bgRefFile) return;
+    const t = document.createElement('div'); t.className = 'ref-thumb';
+    const img = document.createElement('img'); img.src = URL.createObjectURL(state.bgRefFile); t.appendChild(img);
+    const rm = document.createElement('button'); rm.type = 'button'; rm.textContent = '×';
+    rm.addEventListener('click', () => { state.bgRefFile = null; bgRefInput.value = ''; renderBgRef(); });
+    t.appendChild(rm); bgRefPreviewEl.appendChild(t);
+  }
+  bgRefInput.addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (f && f.type.startsWith('image/')) { state.bgRefFile = f; renderBgRef(); } });
   const recolorPartSelect = document.getElementById('recolorPartSelect');
   const recolorColorSelect = document.getElementById('recolorColorSelect');
   const recolorPartOther = document.getElementById('recolorPartOther');
@@ -456,6 +474,7 @@
     freePanel.hidden = ws !== 'free';
     logoPanel.hidden = ws !== 'logo';
     recolorPanel.hidden = ws !== 'recolor';
+    bgPanel.hidden = ws !== 'bg';
     apparelPanel.hidden = ws !== 'apparel';
     const productSection = refPreviewsEl.closest('section');
     const briefSection = promptInput.closest('section');
@@ -506,9 +525,10 @@
 
   async function runEditSet() {
     // APPAREL_EDIT_V2: apparel edits each product photo; style refs are optional
-    if (workspace !== 'apparel' && !state.baseFiles.length) return setStatus(workspace === 'lifestyle' ? 'Upload lifestyle photos first.' : (workspace === 'logo' || workspace === 'recolor') ? 'Upload the product images to edit.' : 'Upload sample photos first.', 'is-error');
+    if (workspace !== 'apparel' && !state.baseFiles.length) return setStatus(workspace === 'lifestyle' ? 'Upload lifestyle photos first.' : (workspace === 'logo' || workspace === 'recolor' || workspace === 'bg') ? 'Upload the product images to edit.' : 'Upload sample photos first.', 'is-error');
+    if (workspace === 'bg' && ((bgChoiceSelect.value === 'ref' || shadowSrcSelect.value === 'ref') && !state.bgRefFile)) return setStatus('Add the reference image, or switch Background/Shadow away from "From reference image".', 'is-error');
     if (workspace === 'logo' && !state.logoFile) return setStatus('Upload your logo (Brand logo upload).', 'is-error');
-    if (workspace !== 'logo' && workspace !== 'recolor' && !state.refFiles.length) return setStatus('Upload product photos too.', 'is-error');
+    if (workspace !== 'logo' && workspace !== 'recolor' && workspace !== 'bg' && !state.refFiles.length) return setStatus('Upload product photos too.', 'is-error');
     if (workspace === 'free' && !freePromptInput.value.trim()) return setStatus('Write your prompt (type @ to reference photos).', 'is-error');
     generateBtn.disabled = true;
     const resolution = resolutionSelect.value;
@@ -523,6 +543,7 @@
       if (state.logoFile) fd.append('logo', state.logoFile);
       if (state.heelFile) fd.append('heel', state.heelFile);
       if (workspace === 'apparel' && state.bgFile) fd.append('bg', state.bgFile);
+      if (workspace === 'bg' && state.bgRefFile) fd.append('bg', state.bgRefFile);
       if (workspace === 'apparel') state.labelFiles.forEach((f) => fd.append('labels', f));
       const r = await fetch('/api/reference', { method: 'POST', body: fd });
       const d = await r.json();
@@ -545,7 +566,8 @@
             body: JSON.stringify({
               referenceId, baseIndex: idx, variant: v, resolution, provider, model, googleApiKey, aspectRatio: aspectSelect.value,
               brandText: (document.getElementById('brandTextInput') || { value: '' }).value, labelOverlay: (document.getElementById('labelOverlaySelect') || { value: 'on' }).value, logoMode: (document.getElementById('logoModeSelect') || { value: 'replace' }).value,
-              mode: workspace === 'free' ? 'free' : workspace === 'logo' ? 'logo' : workspace === 'apparel' ? 'apparel' : workspace === 'recolor' ? 'recolor' : 'swap',
+              mode: workspace === 'free' ? 'free' : workspace === 'logo' ? 'logo' : workspace === 'apparel' ? 'apparel' : workspace === 'recolor' ? 'recolor' : workspace === 'bg' ? 'bg' : 'swap',
+              bgChoice: (bgChoiceSelect || { value: 'white' }).value, bgCustom: (bgCustomInput || { value: '' }).value.trim(), shadowSrc: (shadowSrcSelect || { value: 'auto' }).value,
               part: (recolorPartSelect || { value: 'buckle' }).value, partLabel: (recolorPartOther || { value: '' }).value.trim(),
               color: (recolorColorSelect || { value: 'gold' }).value, colorLabel: (recolorColorOther || { value: '' }).value.trim(),
               logoColor: (document.getElementById('logoColorSelect') || { value: 'white' }).value,

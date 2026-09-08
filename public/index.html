@@ -35,6 +35,7 @@
       <button type="button" class="tab" data-ws="logo">Logo</button>
       <button type="button" class="tab" data-ws="apparel">Apparel</button>
       <button type="button" class="tab" data-ws="recolor">Recolor</button>
+      <button type="button" class="tab" data-ws="bg">Background</button>
     </div>
 
     <div class="rail__scroll">
@@ -100,6 +101,42 @@
             </select>
           </label>
         </div>
+      </section>
+
+      <section class="panel" id="bgPanel" hidden>
+        <header class="panel__head"><span class="panel__num">Bg</span><h2>Background + shadow</h2></header>
+        <p class="panel__hint">Your product stays exactly as photographed — only the background is replaced and a professional shadow added. Fixes old background problems too.</p>
+        <div class="spec-row" style="margin-bottom:8px">
+          <label class="spec-field">
+            <span>Background</span>
+            <select id="bgChoiceSelect">
+              <option value="white" selected>White #FFFFFF</option>
+              <option value="grey">Grey #F8F8F8</option>
+              <option value="custom">Custom colour…</option>
+              <option value="ref">From reference image</option>
+            </select>
+          </label>
+          <label class="spec-field">
+            <span>Shadow</span>
+            <select id="shadowSrcSelect">
+              <option value="auto" selected>Professional (auto)</option>
+              <option value="ref">From reference image</option>
+            </select>
+          </label>
+        </div>
+        <input id="bgCustomInput" type="text" placeholder="Colour, e.g. #F2EFE9 or soft beige" style="margin-bottom:8px; display:none">
+        <p class="panel__hint" style="margin-bottom:6px">Reference image (optional) — only used if Background or Shadow is set to "From reference image".</p>
+        <label class="dropzone" for="bgRefInput" style="padding:12px; margin-bottom:10px">
+          <span class="dropzone__text">Add reference image</span>
+          <span class="dropzone__meta">PNG / JPG · 1 file</span>
+        </label>
+        <input id="bgRefInput" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+        <div id="bgRefPreview" class="ref-previews" style="margin-bottom:10px"></div>
+        <label id="basesDropZone6" class="dropzone" for="basesFileInput">
+          <span class="dropzone__icon">＋</span>
+          <span class="dropzone__text">Drop product images</span>
+          <span class="dropzone__meta">JPG / PNG · up to 30</span>
+        </label>
       </section>
 
       <section class="panel" id="recolorPanel" hidden>
