@@ -882,6 +882,7 @@ app.post('/api/edit', async (req, res) => {
       part = 'buckle', partLabel = '', color = 'gold', colorLabel = '',
       fit = 'product', fitLabel = '', bottomsStyle = 'product', bottomsLabel = '', logosOpt = 'keep',
       bgChoice = 'white', bgCustom = '', shadowSrc = 'auto',
+      copyAngle = 'on', copyShape = 'on', copyShadow = 'on', copyBg = 'on',
       provider = 'google', model = 'gemini-3-pro-image-preview', googleApiKey = '',
     } = req.body || {};
     const entry = referenceStore.get(referenceId);
@@ -891,7 +892,7 @@ app.post('/api/edit', async (req, res) => {
     const base = isApparel ? (entry.product && entry.product[Number(baseIndex)]) : (entry.bases && entry.bases[Number(baseIndex)]);
     if (!base) return res.status(400).json({ error: 'No ' + (isApparel ? 'product' : 'sample') + ' photo at index ' + baseIndex });
     const styleRef = isApparel ? (entry.bases && entry.bases[0]) : null;
-    if (mode !== 'logo' && mode !== 'recolor' && mode !== 'bg' && !entry.product.length) return res.status(400).json({ error: 'Upload product photos too.' });
+    if (mode !== 'logo' && mode !== 'recolor' && mode !== 'bg' && mode !== 'pose' && !entry.product.length) return res.status(400).json({ error: 'Upload product photos too.' });
 
     await acquireSlot(); slotHeld = true;
     const P = entry.product.length;
@@ -899,7 +900,26 @@ app.post('/api/edit', async (req, res) => {
     const cat = catNames[category] || catNames.shoes;
 
     let instruction;
-    if (mode === 'bg') {
+    if (mode === 'pose') {
+      if (!entry.bg) throw new Error('Add the reference image (angle / shape / shadow / background).');
+      const copies = [];
+      if (String(copyAngle) !== 'off') copies.push('the exact CAMERA ANGLE and viewpoint');
+      if (String(copyShape) !== 'off') copies.push('the SHAPE AND PRESENTATION — how the shoe is posed, how it stands or rests, its stance and silhouette on the ground');
+      if (String(copyShadow) !== 'off') copies.push('the SHADOW — same shape, softness, direction and strength');
+      if (String(copyBg) !== 'off') copies.push('the BACKGROUND — same colour, tone and lighting');
+      const keeps = [];
+      if (String(copyAngle) === 'off') keeps.push('keep my photo\'s own camera angle');
+      if (String(copyShape) === 'off') keeps.push('keep my product\'s own pose');
+      if (String(copyShadow) === 'off') keeps.push('keep my photo\'s own shadow');
+      if (String(copyBg) === 'off') keeps.push('keep my photo\'s own background');
+      instruction = [
+        'Image 1 is my product photo. The reference image shows a DIFFERENT product photographed professionally.',
+        'Re-photograph MY product copying from the reference image ONLY: ' + (copies.length ? copies.join('; ') : 'nothing') + '.' + (keeps.length ? ' Also: ' + keeps.join('; ') + '.' : ''),
+        'THE PRODUCT STAYS MINE, IDENTICAL: same design, same colours, same materials and textures, same bow/straps/details, same stitching, same sole, same proportions and true size, same labels and logos — exactly as in image 1. Copy NOTHING of the reference product\'s design, colour or material. Do not redesign, slim, stretch or restyle my product; it is my product, simply photographed like the reference.',
+        'Premium e-commerce quality, sharp focus, true-to-life colour. Output one photorealistic image only.',
+      ].join(' ');
+      if (String(prompt).trim()) instruction += ' Extra instructions: ' + String(prompt).trim();
+    } else if (mode === 'bg') {
       const hasRef = !!entry.bg;
       const BGS = {
         white: 'a clean, seamless, pure WHITE (#FFFFFF) studio background, perfectly uniform edge to edge',

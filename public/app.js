@@ -377,6 +377,20 @@
   const logoPanel = document.getElementById('logoPanel');
   const recolorPanel = document.getElementById('recolorPanel');
   const bgPanel = document.getElementById('bgPanel');
+  const posePanel = document.getElementById('posePanel');
+  const poseRefInput = document.getElementById('poseRefInput');
+  const poseRefPreviewEl = document.getElementById('poseRefPreview');
+  state.poseRefFile = null;
+  function renderPoseRef() {
+    poseRefPreviewEl.innerHTML = '';
+    if (!state.poseRefFile) return;
+    const t = document.createElement('div'); t.className = 'ref-thumb';
+    const img = document.createElement('img'); img.src = URL.createObjectURL(state.poseRefFile); t.appendChild(img);
+    const rm = document.createElement('button'); rm.type = 'button'; rm.textContent = '×';
+    rm.addEventListener('click', () => { state.poseRefFile = null; poseRefInput.value = ''; renderPoseRef(); });
+    t.appendChild(rm); poseRefPreviewEl.appendChild(t);
+  }
+  poseRefInput.addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (f && f.type.startsWith('image/')) { state.poseRefFile = f; renderPoseRef(); } });
   const bgChoiceSelect = document.getElementById('bgChoiceSelect');
   const shadowSrcSelect = document.getElementById('shadowSrcSelect');
   const bgCustomInput = document.getElementById('bgCustomInput');
@@ -489,6 +503,7 @@
     logoPanel.hidden = ws !== 'logo';
     recolorPanel.hidden = ws !== 'recolor';
     bgPanel.hidden = ws !== 'bg';
+    posePanel.hidden = ws !== 'pose';
     apparelPanel.hidden = ws !== 'apparel';
     const productSection = refPreviewsEl.closest('section');
     const briefSection = promptInput.closest('section');
@@ -539,11 +554,12 @@
 
   async function runEditSet() {
     // APPAREL_EDIT_V2: apparel edits each product photo; style refs are optional
-    if (workspace !== 'apparel' && !state.baseFiles.length) return setStatus(workspace === 'lifestyle' ? 'Upload lifestyle photos first.' : (workspace === 'logo' || workspace === 'recolor' || workspace === 'bg') ? 'Upload the product images to edit.' : 'Upload sample photos first.', 'is-error');
+    if (workspace !== 'apparel' && !state.baseFiles.length) return setStatus(workspace === 'lifestyle' ? 'Upload lifestyle photos first.' : (workspace === 'logo' || workspace === 'recolor' || workspace === 'bg' || workspace === 'pose') ? 'Upload the product images to edit.' : 'Upload sample photos first.', 'is-error');
+    if (workspace === 'pose' && !state.poseRefFile) return setStatus('Add the reference image (angle / shape / shadow / background).', 'is-error');
     if (workspace === 'bg' && ((bgChoiceSelect.value === 'ref' || shadowSrcSelect.value === 'ref') && !state.bgRefFile)) return setStatus('Add the reference image, or switch Background/Shadow away from "From reference image".', 'is-error');
     if (workspace === 'recolor' && recolorColorSelect.value === 'ref' && !state.recolorRefFile) return setStatus('Add the colour reference image, or pick another colour.', 'is-error');
     if (workspace === 'logo' && !state.logoFile) return setStatus('Upload your logo (Brand logo upload).', 'is-error');
-    if (workspace !== 'logo' && workspace !== 'recolor' && workspace !== 'bg' && !state.refFiles.length) return setStatus('Upload product photos too.', 'is-error');
+    if (workspace !== 'logo' && workspace !== 'recolor' && workspace !== 'bg' && workspace !== 'pose' && !state.refFiles.length) return setStatus('Upload product photos too.', 'is-error');
     if (workspace === 'free' && !freePromptInput.value.trim()) return setStatus('Write your prompt (type @ to reference photos).', 'is-error');
     generateBtn.disabled = true;
     const resolution = resolutionSelect.value;
@@ -560,6 +576,7 @@
       if (workspace === 'apparel' && state.bgFile) fd.append('bg', state.bgFile);
       if (workspace === 'bg' && state.bgRefFile) fd.append('bg', state.bgRefFile);
       if (workspace === 'recolor' && state.recolorRefFile) fd.append('bg', state.recolorRefFile);
+      if (workspace === 'pose' && state.poseRefFile) fd.append('bg', state.poseRefFile);
       if (workspace === 'apparel') state.labelFiles.forEach((f) => fd.append('labels', f));
       const r = await fetch('/api/reference', { method: 'POST', body: fd });
       const d = await r.json();
@@ -582,7 +599,9 @@
             body: JSON.stringify({
               referenceId, baseIndex: idx, variant: v, resolution, provider, model, googleApiKey, aspectRatio: aspectSelect.value,
               brandText: (document.getElementById('brandTextInput') || { value: '' }).value, labelOverlay: (document.getElementById('labelOverlaySelect') || { value: 'on' }).value, logoMode: (document.getElementById('logoModeSelect') || { value: 'replace' }).value,
-              mode: workspace === 'free' ? 'free' : workspace === 'logo' ? 'logo' : workspace === 'apparel' ? 'apparel' : workspace === 'recolor' ? 'recolor' : workspace === 'bg' ? 'bg' : 'swap',
+              mode: workspace === 'free' ? 'free' : workspace === 'logo' ? 'logo' : workspace === 'apparel' ? 'apparel' : workspace === 'recolor' ? 'recolor' : workspace === 'bg' ? 'bg' : workspace === 'pose' ? 'pose' : 'swap',
+              copyAngle: (document.getElementById('copyAngleSelect') || { value: 'on' }).value, copyShape: (document.getElementById('copyShapeSelect') || { value: 'on' }).value,
+              copyShadow: (document.getElementById('copyShadowSelect') || { value: 'on' }).value, copyBg: (document.getElementById('copyBgSelect') || { value: 'on' }).value,
               bgChoice: (bgChoiceSelect || { value: 'white' }).value, bgCustom: (bgCustomInput || { value: '' }).value.trim(), shadowSrc: (shadowSrcSelect || { value: 'auto' }).value,
               part: (recolorPartSelect || { value: 'buckle' }).value, partLabel: (recolorPartOther || { value: '' }).value.trim(),
               color: (recolorColorSelect || { value: 'gold' }).value, colorLabel: (recolorColorOther || { value: '' }).value.trim(),

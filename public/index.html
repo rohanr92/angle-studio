@@ -36,6 +36,7 @@
       <button type="button" class="tab" data-ws="apparel">Apparel</button>
       <button type="button" class="tab" data-ws="recolor">Recolor</button>
       <button type="button" class="tab" data-ws="bg">Background</button>
+      <button type="button" class="tab" data-ws="pose">Angle match</button>
     </div>
 
     <div class="rail__scroll">
@@ -101,6 +102,41 @@
             </select>
           </label>
         </div>
+      </section>
+
+      <section class="panel" id="posePanel" hidden>
+        <header class="panel__head"><span class="panel__num">Am</span><h2>Angle match</h2></header>
+        <p class="panel__hint">Your product, re-photographed like the reference: its angle, shape/pose, shadow and background — the product itself stays exactly yours.</p>
+        <p class="panel__hint" style="margin-bottom:6px">1 · Reference image (required)</p>
+        <label class="dropzone" for="poseRefInput" style="padding:12px; margin-bottom:10px">
+          <span class="dropzone__text">Add reference image</span>
+          <span class="dropzone__meta">PNG / JPG · 1 file</span>
+        </label>
+        <input id="poseRefInput" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+        <div id="poseRefPreview" class="ref-previews" style="margin-bottom:10px"></div>
+        <p class="panel__hint" style="margin-bottom:6px">2 · What to copy from it</p>
+        <div class="spec-row" style="margin-bottom:8px">
+          <label class="spec-field"><span>Angle</span>
+            <select id="copyAngleSelect"><option value="on" selected>Copy</option><option value="off">Keep mine</option></select>
+          </label>
+          <label class="spec-field"><span>Shape / pose</span>
+            <select id="copyShapeSelect"><option value="on" selected>Copy</option><option value="off">Keep mine</option></select>
+          </label>
+        </div>
+        <div class="spec-row" style="margin-bottom:8px">
+          <label class="spec-field"><span>Shadow</span>
+            <select id="copyShadowSelect"><option value="on" selected>Copy</option><option value="off">Keep mine</option></select>
+          </label>
+          <label class="spec-field"><span>Background</span>
+            <select id="copyBgSelect"><option value="on" selected>Copy</option><option value="off">Keep mine</option></select>
+          </label>
+        </div>
+        <p class="panel__hint" style="margin-bottom:6px">3 · Your product images</p>
+        <label id="basesDropZone7" class="dropzone" for="basesFileInput">
+          <span class="dropzone__icon">＋</span>
+          <span class="dropzone__text">Drop product images</span>
+          <span class="dropzone__meta">JPG / PNG · up to 30</span>
+        </label>
       </section>
 
       <section class="panel" id="bgPanel" hidden>
