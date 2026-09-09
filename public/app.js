@@ -399,7 +399,21 @@
   const recolorPartOther = document.getElementById('recolorPartOther');
   const recolorColorOther = document.getElementById('recolorColorOther');
   recolorPartSelect.addEventListener('change', () => { recolorPartOther.style.display = recolorPartSelect.value === 'other' ? '' : 'none'; });
-  recolorColorSelect.addEventListener('change', () => { recolorColorOther.style.display = recolorColorSelect.value === 'other' ? '' : 'none'; });
+  recolorColorSelect.addEventListener('change', () => { recolorColorOther.style.display = recolorColorSelect.value === 'other' ? '' : 'none'; document.getElementById('recolorRefWrap').style.display = recolorColorSelect.value === 'ref' ? '' : 'none'; });
+  const recolorRefInput = document.getElementById('recolorRefInput');
+  const recolorRefPreviewEl = document.getElementById('recolorRefPreview');
+  const recolorNotes = document.getElementById('recolorNotes');
+  state.recolorRefFile = null;
+  function renderRecolorRef() {
+    recolorRefPreviewEl.innerHTML = '';
+    if (!state.recolorRefFile) return;
+    const t = document.createElement('div'); t.className = 'ref-thumb';
+    const img = document.createElement('img'); img.src = URL.createObjectURL(state.recolorRefFile); t.appendChild(img);
+    const rm = document.createElement('button'); rm.type = 'button'; rm.textContent = '×';
+    rm.addEventListener('click', () => { state.recolorRefFile = null; recolorRefInput.value = ''; renderRecolorRef(); });
+    t.appendChild(rm); recolorRefPreviewEl.appendChild(t);
+  }
+  recolorRefInput.addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (f && f.type.startsWith('image/')) { state.recolorRefFile = f; renderRecolorRef(); } });
   const apparelPanel = document.getElementById('apparelPanel');
   const bgFileInput = document.getElementById('bgFileInput');
   const bgPreviewEl = document.getElementById('bgPreview');
@@ -527,6 +541,7 @@
     // APPAREL_EDIT_V2: apparel edits each product photo; style refs are optional
     if (workspace !== 'apparel' && !state.baseFiles.length) return setStatus(workspace === 'lifestyle' ? 'Upload lifestyle photos first.' : (workspace === 'logo' || workspace === 'recolor' || workspace === 'bg') ? 'Upload the product images to edit.' : 'Upload sample photos first.', 'is-error');
     if (workspace === 'bg' && ((bgChoiceSelect.value === 'ref' || shadowSrcSelect.value === 'ref') && !state.bgRefFile)) return setStatus('Add the reference image, or switch Background/Shadow away from "From reference image".', 'is-error');
+    if (workspace === 'recolor' && recolorColorSelect.value === 'ref' && !state.recolorRefFile) return setStatus('Add the colour reference image, or pick another colour.', 'is-error');
     if (workspace === 'logo' && !state.logoFile) return setStatus('Upload your logo (Brand logo upload).', 'is-error');
     if (workspace !== 'logo' && workspace !== 'recolor' && workspace !== 'bg' && !state.refFiles.length) return setStatus('Upload product photos too.', 'is-error');
     if (workspace === 'free' && !freePromptInput.value.trim()) return setStatus('Write your prompt (type @ to reference photos).', 'is-error');
@@ -544,6 +559,7 @@
       if (state.heelFile) fd.append('heel', state.heelFile);
       if (workspace === 'apparel' && state.bgFile) fd.append('bg', state.bgFile);
       if (workspace === 'bg' && state.bgRefFile) fd.append('bg', state.bgRefFile);
+      if (workspace === 'recolor' && state.recolorRefFile) fd.append('bg', state.recolorRefFile);
       if (workspace === 'apparel') state.labelFiles.forEach((f) => fd.append('labels', f));
       const r = await fetch('/api/reference', { method: 'POST', body: fd });
       const d = await r.json();
@@ -575,7 +591,7 @@
               fit: fitSelect.value, fitLabel: fitOther.value.trim(),
               bottomsStyle: bottomsStyleSelect.value, bottomsLabel: bottomsOther.value.trim(),
               logosOpt: logosOptSelect.value,
-              prompt: workspace === 'free' ? freePromptInput.value.trim() : (promptInput.value || '').trim(),
+              prompt: workspace === 'free' ? freePromptInput.value.trim() : (workspace === 'recolor' ? ((recolorNotes.value || '') + ' ' + (promptInput.value || '')).trim() : (promptInput.value || '').trim()),
             }),
           });
           result = await resp.json();

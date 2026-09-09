@@ -163,12 +163,23 @@
               <option value="black">Black</option>
               <option value="white">White</option>
               <option value="red">Red</option>
+              <option value="ref">From reference image…</option>
               <option value="other">Custom…</option>
             </select>
           </label>
         </div>
         <input id="recolorPartOther" type="text" placeholder="Which part, e.g. the bow on the toe" style="margin-bottom:8px; display:none">
         <input id="recolorColorOther" type="text" placeholder="Colour, e.g. rose gold / navy blue" style="margin-bottom:8px; display:none">
+        <div id="recolorRefWrap" style="display:none; margin-bottom:8px">
+          <p class="panel__hint" style="margin-bottom:6px">Colour reference — the selected part is recoloured to exactly this image's colour.</p>
+          <label class="dropzone" for="recolorRefInput" style="padding:12px">
+            <span class="dropzone__text">Add colour reference</span>
+            <span class="dropzone__meta">PNG / JPG · 1 file</span>
+          </label>
+          <input id="recolorRefInput" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+          <div id="recolorRefPreview" class="ref-previews"></div>
+        </div>
+        <input id="recolorNotes" type="text" placeholder="Other fixes (optional), e.g. make the bow the same colour too" style="margin-bottom:8px">
         <label id="basesDropZone5" class="dropzone" for="basesFileInput">
           <span class="dropzone__icon">＋</span>
           <span class="dropzone__text">Drop product images</span>

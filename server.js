@@ -936,10 +936,11 @@ app.post('/api/edit', async (req, res) => {
         white: 'WHITE, matching a natural factory finish for that material',
         red: 'RED, matching a natural factory finish for that material',
         other: colorLabel ? colorLabel + ', rendered as a natural factory finish for that material' : 'the requested colour',
+        ref: entry.bg ? 'the EXACT colour, tone and finish shown in the colour reference image — match that colour precisely, as a natural factory finish for the material' : 'the requested colour',
       };
       const partText = PARTS[String(part)] || PARTS.buckle;
       const colorText = COLORS[String(color)] || COLORS.gold;
-      instruction = 'Edit sample photo 1. Keep absolutely everything in the photo identical — the product, its shape, material, texture, stitching, the background, lighting, shadows and reflections. Change ONLY the colour of ' + partText + ': recolour it to ' + colorText + '. The part keeps its exact shape, size, texture and position; every other part of the product and the image stays untouched, with no colour bleeding onto neighbouring parts. If the photo shows a pair, recolour that part on BOTH items identically. Output one photorealistic image only.';
+      instruction = 'Edit sample photo 1. Keep absolutely everything in the photo identical — the product, its shape, material, texture, stitching, the background, lighting, shadows and reflections. ' + (String(color) === 'ref' && entry.bg ? 'The colour reference image is included ONLY for its colour — copy nothing else from it. ' : '') + 'Change ONLY the colour of ' + partText + ': recolour it to ' + colorText + '. The part keeps its exact shape, size, texture and position; every other part of the product and the image stays untouched, with no colour bleeding onto neighbouring parts. If the photo shows a pair, recolour that part on BOTH items identically. Output one photorealistic image only.';
       if (String(prompt).trim()) instruction += ' Extra instructions: ' + String(prompt).trim();
     } else if (mode === 'apparel') {
       instruction = [
