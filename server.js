@@ -504,6 +504,59 @@ async function buildLabelArtworks(logoImg) {
   return out;
 }
 
+// ---- Colour lock: correct global colour drift of the generated product back to the source photo (pixel math, no AI) ----
+async function colorLockBuffer(outBuf, srcBase64) {
+  if (!sharp) return outBuf;
+  const S = 640;
+  async function fgStats(buf) {
+    const meta = await sharp(buf).metadata();
+    const H = Math.max(1, Math.round(meta.height * S / meta.width));
+    const { data } = await sharp(buf).removeAlpha().resize(S, H, { fit: 'fill' }).raw().toBuffer({ resolveWithObject: true });
+    const N = S * H;
+    let br = 0, bgc = 0, bb = 0, c = 0;
+    for (let x = 0; x < S; x += 6) { for (const p of [x, x + (H - 1) * S]) { br += data[p * 3]; bgc += data[p * 3 + 1]; bb += data[p * 3 + 2]; c++; } }
+    br /= c; bgc /= c; bb /= c;
+    const m = [0, 0, 0], m2 = [0, 0, 0]; let k = 0;
+    const mask = new Uint8Array(N);
+    for (let p = 0; p < N; p++) {
+      const r = data[p * 3], g = data[p * 3 + 1], b = data[p * 3 + 2];
+      if (Math.abs(r - br) + Math.abs(g - bgc) + Math.abs(b - bb) > 90) { mask[p] = 1; k++; m[0] += r; m[1] += g; m[2] += b; m2[0] += r * r; m2[1] += g * g; m2[2] += b * b; }
+    }
+    if (k < N * 0.005) return null;
+    const mean = m.map((v) => v / k);
+    const sd = m2.map((v, i) => Math.sqrt(Math.max(1, v / k - mean[i] * mean[i])));
+    return { mean, sd };
+  }
+  try {
+    const src = await fgStats(Buffer.from(srcBase64, 'base64'));
+    const out = await fgStats(outBuf);
+    if (!src || !out) return outBuf;
+    // limit correction strength so we never overshoot
+    const gain = out.sd.map((v, i) => Math.max(0.7, Math.min(1.4, src.sd[i] / v)));
+    const meta = await sharp(outBuf).metadata();
+    const { data, info } = await sharp(outBuf).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    const W = info.width, H = info.height;
+    // recompute bg colour of the OUTPUT at full res for masking
+    let br = 0, bgc = 0, bb = 0, c = 0;
+    for (let x = 0; x < W; x += 24) { for (const p of [x, x + (H - 1) * W]) { br += data[p * 3]; bgc += data[p * 3 + 1]; bb += data[p * 3 + 2]; c++; } }
+    br /= c; bgc /= c; bb /= c;
+    for (let p = 0; p < W * H; p++) {
+      const i = p * 3;
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      const d = Math.abs(r - br) + Math.abs(g - bgc) + Math.abs(b - bb);
+      if (d <= 60) continue; // background / shadow zone untouched
+      const w = Math.min(1, (d - 60) / 60); // feather at the product edge
+      const nr = (r - out.mean[0]) * gain[0] + src.mean[0];
+      const ng = (g - out.mean[1]) * gain[1] + src.mean[1];
+      const nb = (b - out.mean[2]) * gain[2] + src.mean[2];
+      data[i] = Math.max(0, Math.min(255, Math.round(r + (nr - r) * w)));
+      data[i + 1] = Math.max(0, Math.min(255, Math.round(g + (ng - g) * w)));
+      data[i + 2] = Math.max(0, Math.min(255, Math.round(b + (nb - b) * w)));
+    }
+    return sharp(data, { raw: { width: W, height: H, channels: 3 } }).png().toBuffer();
+  } catch (e) { return outBuf; }
+}
+
 async function passthrough(buf, mime) {
   if (!sharp) return { buf, mime, width: 0, height: 0 };
   const meta = await sharp(buf).metadata();
@@ -882,7 +935,7 @@ app.post('/api/edit', async (req, res) => {
       part = 'buckle', partLabel = '', color = 'gold', colorLabel = '',
       fit = 'product', fitLabel = '', bottomsStyle = 'product', bottomsLabel = '', logosOpt = 'keep',
       bgChoice = 'white', bgCustom = '', shadowSrc = 'auto',
-      copyAngle = 'on', copyShape = 'on', copyShadow = 'on', copyBg = 'on',
+      copyAngle = 'on', copyShape = 'on', copyShadow = 'on', copyBg = 'on', colorLock = 'on',
       provider = 'google', model = 'gemini-3-pro-image-preview', googleApiKey = '',
     } = req.body || {};
     const entry = referenceStore.get(referenceId);
@@ -915,7 +968,7 @@ app.post('/api/edit', async (req, res) => {
       instruction = [
         'Image 1 is my product photo. The reference image shows a DIFFERENT product photographed professionally.',
         'Re-photograph MY product copying from the reference image ONLY: ' + (copies.length ? copies.join('; ') : 'nothing') + '.' + (keeps.length ? ' Also: ' + keeps.join('; ') + '.' : ''),
-        'THE PRODUCT STAYS MINE, IDENTICAL: same design, same colours, same materials and textures, same bow/straps/details, same stitching, same sole, same proportions and true size, same labels and logos — exactly as in image 1. Copy NOTHING of the reference product\'s design, colour or material. Do not redesign, slim, stretch or restyle my product; it is my product, simply photographed like the reference.',
+        'THE PRODUCT STAYS MINE, IDENTICAL: same design, same materials and textures, same bow/straps/details, same stitching, same sole, same proportions and true size, same labels and logos — exactly as in image 1. COLOUR IS CRITICAL: image 1 is the colour ground truth — every part of my product must keep EXACTLY the colour it has in image 1, same hue, same darkness, same saturation; do not lighten, darken, warm or cool it. Copy NOTHING of the reference product\'s design, colour or material. This is a minimal change: adjust only the viewpoint/pose/shadow/background as instructed, nothing else about the product.',
         'Premium e-commerce quality, sharp focus, true-to-life colour. Output one photorealistic image only.',
       ].join(' ');
       if (String(prompt).trim()) instruction += ' Extra instructions: ' + String(prompt).trim();
@@ -1088,6 +1141,9 @@ app.post('/api/edit', async (req, res) => {
       g = { buf: Buffer.from(r.data), mime: 'image/png' };
     }
     let outBuf = g.buf;
+    if (mode === 'pose' && String(colorLock) !== 'off') {
+      try { outBuf = await colorLockBuffer(outBuf, base.base64); console.log('  colour lock applied (product colours matched to the source photo)'); } catch (e) { console.warn('  colour lock failed: ' + e.message); }
+    }
     if (mode === 'apparel' && String(labelOverlay) !== 'off' && ((entry.labels && entry.labels.length) || (String(logoMode) === 'replace' && entry.logo))) {
       try {
         let labelSet = entry.labels && entry.labels.length ? entry.labels : null;

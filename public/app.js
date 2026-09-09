@@ -602,6 +602,7 @@
               mode: workspace === 'free' ? 'free' : workspace === 'logo' ? 'logo' : workspace === 'apparel' ? 'apparel' : workspace === 'recolor' ? 'recolor' : workspace === 'bg' ? 'bg' : workspace === 'pose' ? 'pose' : 'swap',
               copyAngle: (document.getElementById('copyAngleSelect') || { value: 'on' }).value, copyShape: (document.getElementById('copyShapeSelect') || { value: 'on' }).value,
               copyShadow: (document.getElementById('copyShadowSelect') || { value: 'on' }).value, copyBg: (document.getElementById('copyBgSelect') || { value: 'on' }).value,
+              colorLock: (document.getElementById('colorLockSelect') || { value: 'on' }).value,
               bgChoice: (bgChoiceSelect || { value: 'white' }).value, bgCustom: (bgCustomInput || { value: '' }).value.trim(), shadowSrc: (shadowSrcSelect || { value: 'auto' }).value,
               part: (recolorPartSelect || { value: 'buckle' }).value, partLabel: (recolorPartOther || { value: '' }).value.trim(),
               color: (recolorColorSelect || { value: 'gold' }).value, colorLabel: (recolorColorOther || { value: '' }).value.trim(),
