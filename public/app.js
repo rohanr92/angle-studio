@@ -376,6 +376,32 @@
   const freePanel = document.getElementById('freePanel');
   const logoPanel = document.getElementById('logoPanel');
   const recolorPanel = document.getElementById('recolorPanel');
+  const materialPanel = document.getElementById('materialPanel');
+  const mPartSelect = document.getElementById('mPartSelect');
+  const materialSelect = document.getElementById('materialSelect');
+  const mPartOther = document.getElementById('mPartOther');
+  const materialOther = document.getElementById('materialOther');
+  const mColorSelect = document.getElementById('mColorSelect');
+  const mColorOther = document.getElementById('mColorOther');
+  const materialRefInput = document.getElementById('materialRefInput');
+  const materialRefPreviewEl = document.getElementById('materialRefPreview');
+  state.materialRefFile = null;
+  function materialRefVisibility() {
+    document.getElementById('materialRefWrap').style.display = (materialSelect.value === 'ref' || mColorSelect.value === 'ref') ? '' : 'none';
+  }
+  mPartSelect.addEventListener('change', () => { mPartOther.style.display = mPartSelect.value === 'other' ? '' : 'none'; });
+  materialSelect.addEventListener('change', () => { materialOther.style.display = materialSelect.value === 'other' ? '' : 'none'; materialRefVisibility(); });
+  mColorSelect.addEventListener('change', () => { mColorOther.style.display = mColorSelect.value === 'custom' ? '' : 'none'; materialRefVisibility(); });
+  function renderMaterialRef() {
+    materialRefPreviewEl.innerHTML = '';
+    if (!state.materialRefFile) return;
+    const t = document.createElement('div'); t.className = 'ref-thumb';
+    const img = document.createElement('img'); img.src = URL.createObjectURL(state.materialRefFile); t.appendChild(img);
+    const rm = document.createElement('button'); rm.type = 'button'; rm.textContent = '×';
+    rm.addEventListener('click', () => { state.materialRefFile = null; materialRefInput.value = ''; renderMaterialRef(); });
+    t.appendChild(rm); materialRefPreviewEl.appendChild(t);
+  }
+  materialRefInput.addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (f && f.type.startsWith('image/')) { state.materialRefFile = f; renderMaterialRef(); } });
   const bgPanel = document.getElementById('bgPanel');
   const posePanel = document.getElementById('posePanel');
   const poseRefInput = document.getElementById('poseRefInput');
@@ -502,6 +528,7 @@
     freePanel.hidden = ws !== 'free';
     logoPanel.hidden = ws !== 'logo';
     recolorPanel.hidden = ws !== 'recolor';
+    materialPanel.hidden = ws !== 'material';
     bgPanel.hidden = ws !== 'bg';
     posePanel.hidden = ws !== 'pose';
     apparelPanel.hidden = ws !== 'apparel';
@@ -568,12 +595,13 @@
 
   async function runEditSet() {
     // APPAREL_EDIT_V2: apparel edits each product photo; style refs are optional
-    if (workspace !== 'apparel' && !state.baseFiles.length) return setStatus(workspace === 'lifestyle' ? 'Upload lifestyle photos first.' : (workspace === 'logo' || workspace === 'recolor' || workspace === 'bg' || workspace === 'pose') ? 'Upload the product images to edit.' : 'Upload sample photos first.', 'is-error');
+    if (workspace !== 'apparel' && !state.baseFiles.length) return setStatus(workspace === 'lifestyle' ? 'Upload lifestyle photos first.' : (workspace === 'logo' || workspace === 'recolor' || workspace === 'bg' || workspace === 'pose' || workspace === 'material') ? 'Upload the product images to edit.' : 'Upload sample photos first.', 'is-error');
+    if (workspace === 'material' && (materialSelect.value === 'ref' || mColorSelect.value === 'ref') && !state.materialRefFile) return setStatus('Add the reference image, or pick a material/colour that does not need one.', 'is-error');
     if (workspace === 'pose' && !state.poseRefFile) return setStatus('Add the reference image (angle / shape / shadow / background).', 'is-error');
     if (workspace === 'bg' && ((bgChoiceSelect.value === 'ref' || shadowSrcSelect.value === 'ref') && !state.bgRefFile)) return setStatus('Add the reference image, or switch Background/Shadow away from "From reference image".', 'is-error');
     if (workspace === 'recolor' && recolorColorSelect.value === 'ref' && !state.recolorRefFile) return setStatus('Add the colour reference image, or pick another colour.', 'is-error');
     if (workspace === 'logo' && !state.logoFile) return setStatus('Upload your logo (Brand logo upload).', 'is-error');
-    if (workspace !== 'logo' && workspace !== 'recolor' && workspace !== 'bg' && workspace !== 'pose' && !state.refFiles.length) return setStatus('Upload product photos too.', 'is-error');
+    if (workspace !== 'logo' && workspace !== 'recolor' && workspace !== 'bg' && workspace !== 'pose' && workspace !== 'material' && !state.refFiles.length) return setStatus('Upload product photos too.', 'is-error');
     if (workspace === 'free' && !freePromptInput.value.trim()) return setStatus('Write your prompt (type @ to reference photos).', 'is-error');
     generateBtn.disabled = true;
     const resolution = resolutionSelect.value;
@@ -591,6 +619,7 @@
       if (workspace === 'bg' && state.bgRefFile) fd.append('bg', state.bgRefFile);
       if (workspace === 'recolor' && state.recolorRefFile) fd.append('bg', state.recolorRefFile);
       if (workspace === 'pose' && state.poseRefFile) fd.append('bg', state.poseRefFile);
+      if (workspace === 'material' && state.materialRefFile) fd.append('bg', state.materialRefFile);
       if (workspace === 'apparel') state.labelFiles.forEach((f) => fd.append('labels', f));
       const r = await fetch('/api/reference', { method: 'POST', body: fd });
       const d = await r.json();
@@ -614,7 +643,10 @@
               async: '1',
               referenceId, baseIndex: idx, variant: v, resolution, provider, model, googleApiKey, aspectRatio: aspectSelect.value,
               brandText: (document.getElementById('brandTextInput') || { value: '' }).value, labelOverlay: (document.getElementById('labelOverlaySelect') || { value: 'on' }).value, logoMode: (document.getElementById('logoModeSelect') || { value: 'replace' }).value,
-              mode: workspace === 'free' ? 'free' : workspace === 'logo' ? 'logo' : workspace === 'apparel' ? 'apparel' : workspace === 'recolor' ? 'recolor' : workspace === 'bg' ? 'bg' : workspace === 'pose' ? 'pose' : 'swap',
+              mode: workspace === 'free' ? 'free' : workspace === 'logo' ? 'logo' : workspace === 'apparel' ? 'apparel' : workspace === 'recolor' ? 'recolor' : workspace === 'bg' ? 'bg' : workspace === 'pose' ? 'pose' : workspace === 'material' ? 'material' : 'swap',
+              mPart: (mPartSelect || { value: 'bow' }).value, mPartLabel: (mPartOther || { value: '' }).value.trim(),
+              material: (materialSelect || { value: 'leather' }).value, materialLabel: (materialOther || { value: '' }).value.trim(),
+              mColor: (mColorSelect || { value: 'keep' }).value, mColorLabel: (mColorOther || { value: '' }).value.trim(),
               copyAngle: (document.getElementById('copyAngleSelect') || { value: 'on' }).value, copyShape: (document.getElementById('copyShapeSelect') || { value: 'on' }).value,
               copyShadow: (document.getElementById('copyShadowSelect') || { value: 'on' }).value, copyBg: (document.getElementById('copyBgSelect') || { value: 'on' }).value,
               colorLock: (document.getElementById('colorLockSelect') || { value: 'on' }).value,

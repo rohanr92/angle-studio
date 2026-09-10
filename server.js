@@ -951,6 +951,7 @@ app.post('/api/edit', async (req, res) => {
       prompt = '', variant = 1, resolution = '2k', logoColor = 'white', aspectRatio = 'auto', // PATCH34
       brandText = '', labelOverlay = 'on', logoMode = 'replace',
       part = 'buckle', partLabel = '', color = 'gold', colorLabel = '',
+      mPart = 'bow', mPartLabel = '', material = 'leather', materialLabel = '', mColor = 'keep', mColorLabel = '',
       fit = 'product', fitLabel = '', bottomsStyle = 'product', bottomsLabel = '', logosOpt = 'keep',
       bgChoice = 'white', bgCustom = '', shadowSrc = 'auto',
       copyAngle = 'on', copyShape = 'on', copyShadow = 'on', copyBg = 'on', colorLock = 'on',
@@ -963,7 +964,7 @@ app.post('/api/edit', async (req, res) => {
     const base = isApparel ? (entry.product && entry.product[Number(baseIndex)]) : (entry.bases && entry.bases[Number(baseIndex)]);
     if (!base) return res.status(400).json({ error: 'No ' + (isApparel ? 'product' : 'sample') + ' photo at index ' + baseIndex });
     const styleRef = isApparel ? (entry.bases && entry.bases[0]) : null;
-    if (mode !== 'logo' && mode !== 'recolor' && mode !== 'bg' && mode !== 'pose' && !entry.product.length) return res.status(400).json({ error: 'Upload product photos too.' });
+    if (mode !== 'logo' && mode !== 'recolor' && mode !== 'bg' && mode !== 'pose' && mode !== 'material' && !entry.product.length) return res.status(400).json({ error: 'Upload product photos too.' });
 
     // async mode: acknowledge now, deliver via /api/job/:id
     let jobId = null;
@@ -981,7 +982,48 @@ app.post('/api/edit', async (req, res) => {
     const cat = catNames[category] || catNames.shoes;
 
     let instruction;
-    if (mode === 'pose') {
+    if (mode === 'material') {
+      const MPARTS = {
+        bow: 'the bow on the toe',
+        sole: 'the sole (outsole and midsole edge)',
+        strap: 'the strap(s)',
+        upper: 'the entire upper / whole shoe body',
+        laces: 'the laces',
+        heel: 'the heel',
+        hardware: 'the buckle and small metal hardware',
+        other: mPartLabel || 'the selected part',
+      };
+      const MATERIALS = {
+        keep: null,
+        leather: 'smooth genuine leather with a natural fine grain',
+        suede: 'soft suede with a matte napped texture',
+        patent: 'glossy patent leather with sharp reflective shine',
+        satin: 'satin fabric with a soft elegant sheen',
+        velvet: 'velvet with a plush light-absorbing pile',
+        canvas: 'woven cotton canvas with visible weave',
+        knit: 'fine knit / mesh textile',
+        rubber: 'matte moulded rubber',
+        jelly: 'translucent glossy jelly PVC',
+        metallic: 'metallic-finish leather with a soft foil sheen',
+        ref: entry.bg ? 'EXACTLY the material shown in the reference image — same surface texture, grain and finish' : null,
+        other: materialLabel || null,
+      };
+      const partText = MPARTS[String(mPart)] || MPARTS.bow;
+      const matText = MATERIALS[String(material)] !== undefined ? MATERIALS[String(material)] : MATERIALS.leather;
+      const colText = String(mColor) === 'ref' && entry.bg
+        ? 'change its colour to EXACTLY the colour shown in the reference image'
+        : String(mColor) === 'custom' && mColorLabel
+        ? 'change its colour to ' + mColorLabel
+        : 'keep its colour EXACTLY as it currently is — same hue, same darkness, same saturation, not lighter, not darker';
+      instruction = [
+        'Edit sample photo 1. Keep absolutely everything in the photo identical — the product, its shape, all other parts and their materials, the stitching, the background, lighting, shadows and reflections.',
+        (entry.bg && (String(material) === 'ref' || String(mColor) === 'ref')) ? 'The reference image is included ONLY for the material texture and/or colour to copy — copy nothing else from it.' : '',
+        'Change ONLY ' + partText + ':' + (matText ? ' change its MATERIAL to ' + matText + ', rendered realistically with correct texture, light response and natural transitions where it meets other parts;' : ' keep its material unchanged;') + ' and ' + colText + '.',
+        'The part keeps its exact shape, size and position. Every other part of the product stays untouched, with no material or colour bleeding onto neighbouring parts. IMPORTANT: if the product does not have the selected part, change NOTHING and return the photo unmodified — never invent or add a part.',
+        'Output one photorealistic image only.',
+      ].filter(Boolean).join(' ');
+      if (String(prompt).trim()) instruction += ' Extra instructions: ' + String(prompt).trim();
+    } else if (mode === 'pose') {
       if (!entry.bg) throw new Error('Add the reference image (angle / shape / shadow / background).');
       const copies = [];
       if (String(copyAngle) !== 'off') copies.push('the exact CAMERA ANGLE and viewpoint');
