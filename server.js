@@ -558,7 +558,8 @@ async function colorLockBuffer(outBuf, srcBase64) {
 }
 
 // ---- Protect rest: outside the changed part, restore the ORIGINAL photo's pixels exactly (no AI) ----
-async function protectRest(outBuf, srcBase64) {
+async function protectRest(outBuf, srcBase64, opts = {}) {
+  const TH = opts.threshold || 26;
   if (!sharp) return { buf: outBuf, protectedPct: 0 };
   const srcBuf = Buffer.from(srcBase64, 'base64');
   const sMeta = await sharp(srcBuf).metadata();
@@ -577,10 +578,10 @@ async function protectRest(outBuf, srcBase64) {
   for (let p = 0; p < S * Hs; p++) {
     const i = p * 3;
     const d = Math.abs(dSrc[i] - dOut[i]) + Math.abs(dSrc[i + 1] - dOut[i + 1]) + Math.abs(dSrc[i + 2] - dOut[i + 2]);
-    diff[p] = d > 34 ? 255 : 0;
+    diff[p] = d > TH ? 255 : 0;
   }
   // smooth the mask (fills pinholes, feathers edges), then expand it slightly so part edges are not clipped
-  const maskR = await sharp(diff, { raw: { width: S, height: Hs, channels: 1 } }).blur(3).threshold(40).blur(4)
+  const maskR = await sharp(diff, { raw: { width: S, height: Hs, channels: 1 } }).blur(2).threshold(12).blur(5)
     .resize(W, H, { fit: 'fill' }).blur(Math.max(2, Math.round(W / 700))).raw().toBuffer({ resolveWithObject: true });
   const MC = maskR.info.channels; const mask = maskR.data;
   let changed = 0;
@@ -598,7 +599,7 @@ async function protectRest(outBuf, srcBase64) {
     }
   }
   const buf = await sharp(outFull, { raw: { width: W, height: H, channels: 3 } }).png().toBuffer();
-  return { buf, protectedPct: Math.round((1 - changed / (W * H)) * 100) };
+  return { buf, protectedPct: Math.round((1 - changed / (W * H)) * 1000) / 10 };
 }
 
 async function passthrough(buf, mime) {
@@ -1049,7 +1050,7 @@ app.post('/api/edit', async (req, res) => {
         rubber: 'matte moulded rubber',
         jelly: 'translucent glossy jelly PVC',
         metallic: 'metallic-finish leather with a soft foil sheen',
-        ref: entry.bg ? 'EXACTLY the material shown in the reference image — same surface texture, grain and finish' : null,
+        ref: entry.bg ? 'EXACTLY the material shown in the reference image — same material type, same surface texture and grain, same sheen/gloss level, same apparent thickness and construction (e.g. if the reference bow is a thin waxed cord, mine becomes a thin waxed cord; if it is a flat ribbon, mine becomes a flat ribbon)' : null,
         other: materialLabel || null,
       };
       const partText = MPARTS[String(mPart)] || MPARTS.bow;
@@ -1257,8 +1258,9 @@ app.post('/api/edit', async (req, res) => {
     let outBuf = g.buf;
     if ((mode === 'material' || mode === 'recolor') && String(req.body.protectRest || 'on') !== 'off') {
       try {
-        const pr = await protectRest(outBuf, base.base64);
-        if (pr.protectedPct >= 20) { outBuf = pr.buf; console.log('  protect rest: ' + pr.protectedPct + '% of the photo restored pixel-exact from the original'); }
+        const pr = await protectRest(outBuf, base.base64, { threshold: mode === 'material' ? 14 : 26 });
+        if (pr.protectedPct >= 99.9) console.log('  protect rest skipped — change too subtle to isolate (kept the model output whole)');
+        else if (pr.protectedPct >= 20) { outBuf = pr.buf; console.log('  protect rest: ' + pr.protectedPct + '% of the photo restored pixel-exact from the original'); }
         else console.log('  protect rest skipped — the change covered most of the frame (' + (100 - pr.protectedPct) + '%)');
       } catch (e) { console.warn('  protect rest failed: ' + e.message); }
     }
