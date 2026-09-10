@@ -557,6 +557,50 @@ async function colorLockBuffer(outBuf, srcBase64) {
   } catch (e) { return outBuf; }
 }
 
+// ---- Protect rest: outside the changed part, restore the ORIGINAL photo's pixels exactly (no AI) ----
+async function protectRest(outBuf, srcBase64) {
+  if (!sharp) return { buf: outBuf, protectedPct: 0 };
+  const srcBuf = Buffer.from(srcBase64, 'base64');
+  const sMeta = await sharp(srcBuf).metadata();
+  let out = sharp(outBuf);
+  const oMeta = await out.metadata();
+  if (oMeta.width !== sMeta.width || oMeta.height !== sMeta.height) out = out.resize(sMeta.width, sMeta.height, { fit: 'fill' });
+  const outFull = await out.removeAlpha().raw().toBuffer();
+  const srcFull = await sharp(srcBuf).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  const W = sMeta.width, H = sMeta.height;
+  if (srcFull.data.length !== outFull.length) return { buf: outBuf, protectedPct: 0 };
+  // change mask at reduced scale, blurred for smooth feathering
+  const S = 600, Hs = Math.max(1, Math.round(H * S / W));
+  const dSrc = await sharp(srcBuf).removeAlpha().resize(S, Hs, { fit: 'fill' }).raw().toBuffer();
+  const dOut = await sharp(outBuf).removeAlpha().resize(S, Hs, { fit: 'fill' }).raw().toBuffer();
+  const diff = Buffer.alloc(S * Hs);
+  for (let p = 0; p < S * Hs; p++) {
+    const i = p * 3;
+    const d = Math.abs(dSrc[i] - dOut[i]) + Math.abs(dSrc[i + 1] - dOut[i + 1]) + Math.abs(dSrc[i + 2] - dOut[i + 2]);
+    diff[p] = d > 34 ? 255 : 0;
+  }
+  // smooth the mask (fills pinholes, feathers edges), then expand it slightly so part edges are not clipped
+  const maskR = await sharp(diff, { raw: { width: S, height: Hs, channels: 1 } }).blur(3).threshold(40).blur(4)
+    .resize(W, H, { fit: 'fill' }).blur(Math.max(2, Math.round(W / 700))).raw().toBuffer({ resolveWithObject: true });
+  const MC = maskR.info.channels; const mask = maskR.data;
+  let changed = 0;
+  for (let p = 0; p < W * H; p++) {
+    if ((p & 0xFFFFF) === 0) await new Promise((r) => setImmediate(r));
+    const m = mask[p * MC] / 255;
+    if (m >= 0.995) { changed++; continue; }
+    const i = p * 3;
+    if (m <= 0.005) { outFull[i] = srcFull.data[i]; outFull[i + 1] = srcFull.data[i + 1]; outFull[i + 2] = srcFull.data[i + 2]; }
+    else {
+      outFull[i] = Math.round(srcFull.data[i] * (1 - m) + outFull[i] * m);
+      outFull[i + 1] = Math.round(srcFull.data[i + 1] * (1 - m) + outFull[i + 1] * m);
+      outFull[i + 2] = Math.round(srcFull.data[i + 2] * (1 - m) + outFull[i + 2] * m);
+      changed++;
+    }
+  }
+  const buf = await sharp(outFull, { raw: { width: W, height: H, channels: 3 } }).png().toBuffer();
+  return { buf, protectedPct: Math.round((1 - changed / (W * H)) * 100) };
+}
+
 async function passthrough(buf, mime) {
   if (!sharp) return { buf, mime, width: 0, height: 0 };
   const meta = await sharp(buf).metadata();
@@ -1211,6 +1255,13 @@ app.post('/api/edit', async (req, res) => {
       g = { buf: Buffer.from(r.data), mime: 'image/png' };
     }
     let outBuf = g.buf;
+    if ((mode === 'material' || mode === 'recolor') && String(req.body.protectRest || 'on') !== 'off') {
+      try {
+        const pr = await protectRest(outBuf, base.base64);
+        if (pr.protectedPct >= 20) { outBuf = pr.buf; console.log('  protect rest: ' + pr.protectedPct + '% of the photo restored pixel-exact from the original'); }
+        else console.log('  protect rest skipped — the change covered most of the frame (' + (100 - pr.protectedPct) + '%)');
+      } catch (e) { console.warn('  protect rest failed: ' + e.message); }
+    }
     if (mode === 'pose' && String(colorLock) !== 'off') {
       try { outBuf = await colorLockBuffer(outBuf, base.base64); console.log('  colour lock applied (product colours matched to the source photo)'); } catch (e) { console.warn('  colour lock failed: ' + e.message); }
     }
