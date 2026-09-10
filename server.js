@@ -925,6 +925,17 @@ app.get('/api/image/:id', (req, res) => {
 });
 
 // Swap / free-prompt editing on lifestyle & sample photos
+// Async jobs: the browser gets a job id instantly and polls for the result,
+// so no HTTP request ever outlives the hosting proxy's 5-minute limit.
+const jobsStore = new Map();
+setInterval(() => { for (const [id, j] of jobsStore) if (j.createdAt < Date.now() - 30 * 60e3) jobsStore.delete(id); }, 60e3);
+app.get('/api/job/:id', (req, res) => {
+  const j = jobsStore.get(req.params.id);
+  if (!j) return res.status(404).json({ error: 'Job not found (expired?)' });
+  if (!j.done) return res.json({ done: false });
+  res.json({ done: true, result: j.payload });
+});
+
 app.post('/api/edit', async (req, res) => {
   let slotHeld = false;
   try {
@@ -946,6 +957,16 @@ app.post('/api/edit', async (req, res) => {
     if (!base) return res.status(400).json({ error: 'No ' + (isApparel ? 'product' : 'sample') + ' photo at index ' + baseIndex });
     const styleRef = isApparel ? (entry.bases && entry.bases[0]) : null;
     if (mode !== 'logo' && mode !== 'recolor' && mode !== 'bg' && mode !== 'pose' && !entry.product.length) return res.status(400).json({ error: 'Upload product photos too.' });
+
+    // async mode: acknowledge now, deliver via /api/job/:id
+    let jobId = null;
+    const isAsync = String((req.body || {}).async || '') === '1';
+    const finish = (payload) => {
+      if (isAsync && jobId) { jobsStore.set(jobId, { done: true, payload, createdAt: Date.now() }); }
+      else if (!res.headersSent) res.json(payload);
+    };
+    req._finishJob = finish;
+    if (isAsync) { jobId = crypto.randomUUID(); jobsStore.set(jobId, { done: false, createdAt: Date.now() }); res.json({ jobId }); }
 
     await acquireSlot(); slotHeld = true;
     const P = entry.product.length;
@@ -1161,10 +1182,11 @@ app.post('/api/edit', async (req, res) => {
     console.log(`  [edit/${mode}] photo ${Number(baseIndex) + 1} v${variant}: done ${cleaned.width}x${cleaned.height} (requested ${String(resolution).toUpperCase()}, generated ${aspect}${targetAspect ? ', padded to ' + targetAspect : ''}) via ${provider}/${model}`);
     const id = crypto.randomUUID();
     generatedStore.set(id, { ...cleaned, createdAt: Date.now() });
-    res.json({ status: 'COMPLETED', imageUrl: `/api/image/${id}.png`, width: cleaned.width, height: cleaned.height, variant, baseIndex });
+    req._finishJob({ status: 'COMPLETED', imageUrl: `/api/image/${id}.png`, width: cleaned.width, height: cleaned.height, variant, baseIndex });
   } catch (err) {
     console.error('edit error:', err.message);
-    res.status(200).json({ status: 'FAILED', error: err.message, variant: req.body && req.body.variant, baseIndex: req.body && req.body.baseIndex });
+    const failPayload = { status: 'FAILED', error: err.message, variant: req.body && req.body.variant, baseIndex: req.body && req.body.baseIndex };
+    if (req._finishJob) req._finishJob(failPayload); else if (!res.headersSent) res.status(200).json(failPayload);
   } finally {
     if (slotHeld) releaseSlot();
   }

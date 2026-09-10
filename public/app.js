@@ -552,6 +552,20 @@
   });
   document.addEventListener('click', (e) => { if (!mentionMenu.contains(e.target) && e.target !== freePromptInput) mentionMenu.hidden = true; });
 
+  async function pollJob(jobId) {
+    const deadline = Date.now() + 20 * 60e3;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 2500));
+      try {
+        const rr = await fetch('/api/job/' + jobId);
+        if (rr.status === 404) return { status: 'FAILED', error: 'Job expired on the server — try again.' };
+        const dd = await rr.json();
+        if (dd.done) return dd.result;
+      } catch (e) { /* transient network blip — keep polling */ }
+    }
+    return { status: 'FAILED', error: 'Timed out waiting for the result (20 min).' };
+  }
+
   async function runEditSet() {
     // APPAREL_EDIT_V2: apparel edits each product photo; style refs are optional
     if (workspace !== 'apparel' && !state.baseFiles.length) return setStatus(workspace === 'lifestyle' ? 'Upload lifestyle photos first.' : (workspace === 'logo' || workspace === 'recolor' || workspace === 'bg' || workspace === 'pose') ? 'Upload the product images to edit.' : 'Upload sample photos first.', 'is-error');
@@ -597,6 +611,7 @@
           const resp = await fetch('/api/edit', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+              async: '1',
               referenceId, baseIndex: idx, variant: v, resolution, provider, model, googleApiKey, aspectRatio: aspectSelect.value,
               brandText: (document.getElementById('brandTextInput') || { value: '' }).value, labelOverlay: (document.getElementById('labelOverlaySelect') || { value: 'on' }).value, logoMode: (document.getElementById('logoModeSelect') || { value: 'replace' }).value,
               mode: workspace === 'free' ? 'free' : workspace === 'logo' ? 'logo' : workspace === 'apparel' ? 'apparel' : workspace === 'recolor' ? 'recolor' : workspace === 'bg' ? 'bg' : workspace === 'pose' ? 'pose' : 'swap',
@@ -615,6 +630,7 @@
             }),
           });
           result = await resp.json();
+          if (result && result.jobId) result = await pollJob(result.jobId);
         } catch (e) { result = { status: 'FAILED', error: e.message }; }
         done++;
         renderCellResult(idx, v, label, result, aspectSelect.value, resolution);
