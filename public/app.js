@@ -649,5 +649,33 @@
     }
   }
 
+  // Recover recent: pull everything the server still holds in memory
+  const recoverBtn = document.getElementById('recoverBtn');
+  recoverBtn.addEventListener('click', async () => {
+    recoverBtn.disabled = true;
+    try {
+      const r = await fetch('/api/recent');
+      const d = await r.json();
+      const items = (d.images || []);
+      if (!items.length) { setStatus('Nothing on the server right now (images expire after ~6 hours or on redeploy).', 'is-error'); return; }
+      const labels = items.map((it, i) => it.label || ('Image ' + (i + 1)));
+      renderPlaceholders(labels, 1);
+      const finished = [];
+      items.forEach((it, idx) => {
+        const result = { status: 'COMPLETED', imageUrl: '/api/image/' + it.id + '.png', width: it.width, height: it.height };
+        renderCellResult(idx, 1, labels[idx], result, 'auto', '');
+        finished.push({ label: labels[idx], url: result.imageUrl });
+      });
+      sheetSub.textContent = items.length + ' recovered from the server.';
+      downloadAllBtn.hidden = false;
+      downloadAllBtn.onclick = () => downloadAll(finished);
+      setStatus('Recovered ' + items.length + ' image(s) — save what you need now.', 'is-ok');
+    } catch (e) {
+      setStatus('Could not fetch recent images: ' + e.message, 'is-error');
+    } finally {
+      recoverBtn.disabled = false;
+    }
+  });
+
   applyWorkspace('angles');
 })();

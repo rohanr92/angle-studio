@@ -929,6 +929,13 @@ app.get('/api/image/:id', (req, res) => {
 // so no HTTP request ever outlives the hosting proxy's 5-minute limit.
 const jobsStore = new Map();
 setInterval(() => { for (const [id, j] of jobsStore) if (j.createdAt < Date.now() - 30 * 60e3) jobsStore.delete(id); }, 60e3);
+app.get('/api/recent', (req, res) => {
+  const items = [];
+  for (const [id, g] of generatedStore) items.push({ id, createdAt: g.createdAt, width: g.width || 0, height: g.height || 0, label: g.label || '' });
+  items.sort((a, b) => b.createdAt - a.createdAt);
+  res.json({ images: items.slice(0, 120) });
+});
+
 app.get('/api/job/:id', (req, res) => {
   const j = jobsStore.get(req.params.id);
   if (!j) return res.status(404).json({ error: 'Job not found (expired?)' });
