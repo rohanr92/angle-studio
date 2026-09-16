@@ -643,6 +643,7 @@
               async: '1',
               referenceId, baseIndex: idx, variant: v, resolution, provider, model, googleApiKey, aspectRatio: aspectSelect.value,
               brandText: (document.getElementById('brandTextInput') || { value: '' }).value, labelOverlay: (document.getElementById('labelOverlaySelect') || { value: 'on' }).value, logoMode: (document.getElementById('logoModeSelect') || { value: 'replace' }).value,
+              neckLabel: (document.getElementById('neckLabelSelect') || { value: 'keep' }).value, hemLabel: (document.getElementById('hemLabelSelect') || { value: 'keep' }).value,
               mode: workspace === 'free' ? 'free' : workspace === 'logo' ? 'logo' : workspace === 'apparel' ? 'apparel' : workspace === 'recolor' ? 'recolor' : workspace === 'bg' ? 'bg' : workspace === 'pose' ? 'pose' : workspace === 'material' ? 'material' : 'swap',
               mPart: (mPartSelect || { value: 'bow' }).value, mPartLabel: (mPartOther || { value: '' }).value.trim(),
               material: (materialSelect || { value: 'leather' }).value, materialLabel: (materialOther || { value: '' }).value.trim(),
