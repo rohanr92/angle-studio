@@ -1204,12 +1204,16 @@ app.post('/api/edit', async (req, res) => {
       };
       const fitText = FITS[String(fit)] !== undefined ? FITS[String(fit)] : FITS.product;
       const bText = BSTYLES[String(bottomsStyle)] !== undefined ? BSTYLES[String(bottomsStyle)] : '';
+      const swapLabelRules = 'LABEL RULES: the garment has ONLY the labels and tags visible in my product photos — NEVER add or invent any label, tag, patch, embroidery or logo anywhere on it. '
+        + (String(hemLabel) === 'none' ? 'It has NO hem or side tag — do NOT add one. ' : String(hemLabel) === 'remove' ? 'Remove its hem/side tag completely — clean seam, no mark left. ' : '')
+        + (String(neckLabel) === 'none' ? 'It has NO brand neck label — do not add one. ' : String(neckLabel) === 'remove' ? 'Remove its brand neck label completely. ' : '');
+      const swapColourTruth = 'COLOUR TRUTH: the garment keeps EXACTLY the colour of my product photos — same hue, same darkness, same saturation, no tint shift.';
       const logosText = String(logosOpt) === 'remove'
         ? 'LOGOS: remove every visible brand logo, brand label, hem tag, side tag, patch, button logo, embroidery or brand text from the garment — it must look completely plain and unbranded.'
         : 'LOGOS AND LABELS: keep every logo, label, hem tag and marking exactly as it appears on my product in the product photos — do not remove or invent any.';
       instruction = [
         `Edit sample photo 1. Keep absolutely everything the same — the person, face, pose, skin, hair, all other clothing, the background, lighting, colours and shadows. Replace ONLY the ${cat} worn in the photo with my product shown in product photo${P > 1 ? 's 1 to ' + P : ' 1'}. My product must be reproduced exactly: same shape, colour, material, texture and details as in the product photos, with correct perspective, size and lighting for the scene.`,
-        fitText, bText, logosText,
+        fitText, bText, logosText, swapLabelRules, swapColourTruth,
         'Output one photorealistic image only.',
       ].filter(Boolean).join(' ');
       if (String(prompt).trim()) instruction += ' Extra instructions: ' + String(prompt).trim();
