@@ -998,6 +998,7 @@ app.post('/api/edit', async (req, res) => {
       part = 'buckle', partLabel = '', color = 'gold', colorLabel = '',
       mPart = 'bow', mPartLabel = '', material = 'leather', materialLabel = '', mColor = 'keep', mColorLabel = '',
       neckLabel = 'keep', hemLabel = 'keep',
+      otherColor = 'keep', otherColorLabel = '',
       fit = 'product', fitLabel = '', bottomsStyle = 'product', bottomsLabel = '', logosOpt = 'keep',
       bgChoice = 'white', bgCustom = '', shadowSrc = 'auto',
       copyAngle = 'on', copyShape = 'on', copyShadow = 'on', copyBg = 'on', colorLock = 'on',
@@ -1208,12 +1209,25 @@ app.post('/api/edit', async (req, res) => {
         + (String(hemLabel) === 'none' ? 'It has NO hem or side tag — do NOT add one. ' : String(hemLabel) === 'remove' ? 'Remove its hem/side tag completely — clean seam, no mark left. ' : '')
         + (String(neckLabel) === 'none' ? 'It has NO brand neck label — do not add one. ' : String(neckLabel) === 'remove' ? 'Remove its brand neck label completely. ' : '');
       const swapColourTruth = 'COLOUR TRUTH: the garment keeps EXACTLY the colour of my product photos — same hue, same darkness, same saturation, no tint shift.';
+      const otherGarment = String(category) === 'bottoms' ? 'the TOP the model wears'
+        : (String(category) === 'top' || String(category) === 'dress') ? 'the BOTTOMS the model wears (trousers, jeans or skirt)'
+        : 'the other main clothing the model wears';
+      const OTHER_COLORS = {
+        keep: '',
+        match: 'the EXACT same colour as my product, so the outfit reads as a colour-matched set',
+        black: 'BLACK', white: 'WHITE', grey: 'GREY', beige: 'BEIGE / neutral tan', denim: 'classic blue DENIM',
+        other: otherColorLabel || '',
+      };
+      const otherColText = OTHER_COLORS[String(otherColor)] !== undefined ? OTHER_COLORS[String(otherColor)] : '';
+      const otherText = otherColText
+        ? 'EXCEPTION — OTHER CLOTHING COLOUR: additionally recolour ' + otherGarment + ' to ' + otherColText + '. Only its COLOUR changes — it stays the exact same garment with the same fit, cut, fabric, texture and details, worn exactly the same way. No other clothing, and nothing else in the photo, changes colour.'
+        : '';
       const logosText = String(logosOpt) === 'remove'
         ? 'LOGOS: remove every visible brand logo, brand label, hem tag, side tag, patch, button logo, embroidery or brand text from the garment — it must look completely plain and unbranded.'
         : 'LOGOS AND LABELS: keep every logo, label, hem tag and marking exactly as it appears on my product in the product photos — do not remove or invent any.';
       instruction = [
         `Edit sample photo 1. Keep absolutely everything the same — the person, face, pose, skin, hair, all other clothing, the background, lighting, colours and shadows. Replace ONLY the ${cat} worn in the photo with my product shown in product photo${P > 1 ? 's 1 to ' + P : ' 1'}. My product must be reproduced exactly: same shape, colour, material, texture and details as in the product photos, with correct perspective, size and lighting for the scene.`,
-        fitText, bText, logosText, swapLabelRules, swapColourTruth,
+        fitText, bText, logosText, swapLabelRules, swapColourTruth, otherText,
         'Output one photorealistic image only.',
       ].filter(Boolean).join(' ');
       if (String(prompt).trim()) instruction += ' Extra instructions: ' + String(prompt).trim();

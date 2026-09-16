@@ -499,6 +499,9 @@
   const logosOptSelect = document.getElementById('logosOptSelect');
   fitSelect.addEventListener('change', () => { fitOther.style.display = fitSelect.value === 'other' ? '' : 'none'; });
   bottomsStyleSelect.addEventListener('change', () => { bottomsOther.style.display = bottomsStyleSelect.value === 'other' ? '' : 'none'; });
+  const otherColorSelect = document.getElementById('otherColorSelect');
+  const otherColorInput = document.getElementById('otherColorInput');
+  otherColorSelect.addEventListener('change', () => { otherColorInput.style.display = otherColorSelect.value === 'other' ? '' : 'none'; });
 
   function renderBases() {
     basesThumbsHost.innerHTML = '';
@@ -657,6 +660,7 @@
               logoColor: (document.getElementById('logoColorSelect') || { value: 'white' }).value,
               category: categorySelect.value, categoryLabel: categoryOther.value.trim(),
               fit: fitSelect.value, fitLabel: fitOther.value.trim(),
+              otherColor: (otherColorSelect || { value: 'keep' }).value, otherColorLabel: (otherColorInput || { value: '' }).value.trim(),
               bottomsStyle: bottomsStyleSelect.value, bottomsLabel: bottomsOther.value.trim(),
               logosOpt: logosOptSelect.value,
               prompt: workspace === 'free' ? freePromptInput.value.trim() : (workspace === 'recolor' ? ((recolorNotes.value || '') + ' ' + (promptInput.value || '')).trim() : (promptInput.value || '').trim()),
