@@ -1002,6 +1002,7 @@ app.post('/api/edit', async (req, res) => {
       fit = 'product', fitLabel = '', bottomsStyle = 'product', bottomsLabel = '', logosOpt = 'keep',
       bgChoice = 'white', bgCustom = '', shadowSrc = 'auto',
       copyAngle = 'on', copyShape = 'on', copyShadow = 'on', copyBg = 'on', colorLock = 'on',
+      poseType = 'auto', poseFit = 'product', poseFitLabel = '',
       provider = 'google', model = 'gemini-3-pro-image-preview', googleApiKey = '',
     } = req.body || {};
     const entry = referenceStore.get(referenceId);
@@ -1085,6 +1086,20 @@ app.post('/api/edit', async (req, res) => {
       instruction = [
         'Image 1 is my product photo. The reference image shows a DIFFERENT product photographed professionally.',
         'Re-photograph MY product copying from the reference image ONLY: ' + (copies.length ? copies.join('; ') : 'nothing') + '.' + (keeps.length ? ' Also: ' + keeps.join('; ') + '.' : ''),
+        (String(poseType) !== 'auto' ? 'MY PRODUCT IS: ' + ({ top: 'a top / shirt', bottoms: 'bottoms (trousers, jeans or a skirt)', dress: 'a dress', shoes: 'footwear', bag: 'a bag' }[String(poseType)] || String(poseType)) + '.' : ''),
+        (({ top: 1, bottoms: 1, dress: 1 }[String(poseType)]) ? ({
+          product: '',
+          notrelaxed: 'PRESENTATION: present the garment NOT TOO RELAXED — a clean regular shape with minimal ease.',
+          slight: 'PRESENTATION: present the garment SLIGHTLY RELAXED — a little soft ease and gentle drape.',
+          relaxed: 'PRESENTATION: present the garment RELAXED — soft natural volume and drape, not pressed flat or slim.',
+          toorelaxed: 'PRESENTATION: present the garment VERY RELAXED / OVERSIZED — generous volume and heavy soft drape.',
+          slim: 'PRESENTATION: present the garment SLIM — a neat, trim silhouette.',
+          fitted: 'PRESENTATION: present the garment BODY-FITTED in shape — a close, contoured silhouette.',
+          other: poseFitLabel ? 'PRESENTATION: ' + poseFitLabel : '',
+        }[String(poseFit)] || '') : ''),
+        (String(neckLabel) === 'none' ? 'LABELS: this garment has NO brand neck label — do not add one.' : String(neckLabel) === 'remove' ? 'LABELS: REMOVE the brand neck label completely, leaving clean fabric.' : ''),
+        (String(hemLabel) === 'none' ? 'It has NO hem or side tag — do NOT add one anywhere.' : String(hemLabel) === 'remove' ? 'REMOVE the hem/side tag completely — clean seam, no mark.' : ''),
+        'NEVER add or invent any label, tag or logo the product does not have in image 1.',
         'THE PRODUCT STAYS MINE, IDENTICAL: same design, same materials and textures, same bow/straps/details, same stitching, same sole, same proportions and true size, same labels and logos — exactly as in image 1. COLOUR IS CRITICAL: image 1 is the colour ground truth — every part of my product must keep EXACTLY the colour it has in image 1, same hue, same darkness, same saturation; do not lighten, darken, warm or cool it. Copy NOTHING of the reference product\'s design, colour or material. This is a minimal change: adjust only the viewpoint/pose/shadow/background as instructed, nothing else about the product.',
         'Premium e-commerce quality, sharp focus, true-to-life colour. Output one photorealistic image only.',
       ].join(' ');

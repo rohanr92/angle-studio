@@ -416,6 +416,8 @@
     rm.addEventListener('click', () => { state.poseRefFile = null; poseRefInput.value = ''; renderPoseRef(); });
     t.appendChild(rm); poseRefPreviewEl.appendChild(t);
   }
+  const poseFitSel = document.getElementById('poseFitSelect'); const poseFitOth = document.getElementById('poseFitOther');
+  if (poseFitSel) poseFitSel.addEventListener('change', () => { poseFitOth.style.display = poseFitSel.value === 'other' ? '' : 'none'; });
   poseRefInput.addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (f && f.type.startsWith('image/')) { state.poseRefFile = f; renderPoseRef(); } });
   const bgChoiceSelect = document.getElementById('bgChoiceSelect');
   const shadowSrcSelect = document.getElementById('shadowSrcSelect');
@@ -646,7 +648,7 @@
               async: '1',
               referenceId, baseIndex: idx, variant: v, resolution, provider, model, googleApiKey, aspectRatio: aspectSelect.value,
               brandText: (document.getElementById('brandTextInput') || { value: '' }).value, labelOverlay: (document.getElementById('labelOverlaySelect') || { value: 'on' }).value, logoMode: (document.getElementById('logoModeSelect') || { value: 'replace' }).value,
-              neckLabel: ((workspace === 'lifestyle' ? document.getElementById('swapNeckSelect') : document.getElementById('neckLabelSelect')) || { value: 'keep' }).value, hemLabel: ((workspace === 'lifestyle' ? document.getElementById('swapHemSelect') : document.getElementById('hemLabelSelect')) || { value: 'keep' }).value,
+              neckLabel: ((workspace === 'lifestyle' ? document.getElementById('swapNeckSelect') : workspace === 'pose' ? document.getElementById('poseNeckSelect') : document.getElementById('neckLabelSelect')) || { value: 'keep' }).value, hemLabel: ((workspace === 'lifestyle' ? document.getElementById('swapHemSelect') : workspace === 'pose' ? document.getElementById('poseHemSelect') : document.getElementById('hemLabelSelect')) || { value: 'keep' }).value,
               mode: workspace === 'free' ? 'free' : workspace === 'logo' ? 'logo' : workspace === 'apparel' ? 'apparel' : workspace === 'recolor' ? 'recolor' : workspace === 'bg' ? 'bg' : workspace === 'pose' ? 'pose' : workspace === 'material' ? 'material' : 'swap',
               mPart: (mPartSelect || { value: 'bow' }).value, mPartLabel: (mPartOther || { value: '' }).value.trim(),
               material: (materialSelect || { value: 'leather' }).value, materialLabel: (materialOther || { value: '' }).value.trim(),
@@ -654,6 +656,9 @@
               copyAngle: (document.getElementById('copyAngleSelect') || { value: 'on' }).value, copyShape: (document.getElementById('copyShapeSelect') || { value: 'on' }).value,
               copyShadow: (document.getElementById('copyShadowSelect') || { value: 'on' }).value, copyBg: (document.getElementById('copyBgSelect') || { value: 'on' }).value,
               colorLock: (document.getElementById('colorLockSelect') || { value: 'on' }).value,
+              poseType: (document.getElementById('poseTypeSelect') || { value: 'auto' }).value,
+              poseFit: (document.getElementById('poseFitSelect') || { value: 'product' }).value,
+              poseFitLabel: (document.getElementById('poseFitOther') || { value: '' }).value.trim(),
               bgChoice: (bgChoiceSelect || { value: 'white' }).value, bgCustom: (bgCustomInput || { value: '' }).value.trim(), shadowSrc: (shadowSrcSelect || { value: 'auto' }).value,
               part: (recolorPartSelect || { value: 'buckle' }).value, partLabel: (recolorPartOther || { value: '' }).value.trim(),
               color: (recolorColorSelect || { value: 'gold' }).value, colorLabel: (recolorColorOther || { value: '' }).value.trim(),
