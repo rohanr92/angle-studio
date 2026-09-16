@@ -774,6 +774,8 @@ app.post('/api/generate-angle', async (req, res) => {
       provider = 'freepik',
       googleApiKey = '',
       postProcess = 'off',
+      productType = 'shoes', prodFit = 'product', prodFitLabel = '',
+      neckLabel = 'keep', hemLabel = 'keep',
     } = req.body || {};
     const PP = String(postProcess) === 'on';
 
@@ -848,6 +850,27 @@ app.post('/api/generate-angle', async (req, res) => {
       : 'Do not add any logo, text, monogram or embossing that is not clearly visible in the product images.');
     if (guideMode !== 'style') lines.push(`Output one photorealistic image only, ${aspectRatio} aspect ratio, sharp focus, true-to-life colour.`);
     if (heelImg && guideMode !== 'manual') lines.push('A heel reference image is included: the heel and back of the shoe must match it exactly — same height, thickness and profile.');
+    const APPAREL_TYPES = { top: 'a top / shirt', bottoms: 'bottoms (trousers, jeans or a skirt)', dress: 'a dress', bag: 'a bag' };
+    if (APPAREL_TYPES[String(productType)]) {
+      lines.push('IMPORTANT — PRODUCT TYPE: my product is NOT a shoe; it is ' + APPAREL_TYPES[String(productType)] + '. Wherever these instructions say "shoe" or "sole", they mean my product. Photograph it the professional e-commerce way for this product type (flat lay or ghost-mannequin presentation as appropriate), with the soft contact shadow under the product.');
+      const PRES = {
+        product: '',
+        notrelaxed: 'PRESENTATION: present the garment NOT TOO RELAXED — a clean regular shape with minimal ease.',
+        slight: 'PRESENTATION: present the garment SLIGHTLY RELAXED — a little soft ease and gentle natural drape.',
+        relaxed: 'PRESENTATION: present the garment RELAXED — soft natural volume and drape, not pressed flat or slim.',
+        toorelaxed: 'PRESENTATION: present the garment VERY RELAXED / OVERSIZED — generous volume and heavy soft drape.',
+        slim: 'PRESENTATION: present the garment SLIM — a neat, trim silhouette.',
+        fitted: 'PRESENTATION: present the garment BODY-FITTED in shape — a close, contoured silhouette.',
+        other: prodFitLabel ? 'PRESENTATION: ' + prodFitLabel : '',
+      };
+      const pres = PRES[String(prodFit)] !== undefined ? PRES[String(prodFit)] : '';
+      if (pres && String(productType) !== 'bag') lines.push(pres);
+      if (String(neckLabel) === 'none') lines.push('LABELS: this garment has NO brand neck label — do not add one.');
+      else if (String(neckLabel) === 'remove') lines.push('LABELS: REMOVE the brand neck label completely, leaving clean fabric where it was.');
+      if (String(hemLabel) === 'none') lines.push('It has NO hem or side tag — do NOT add one anywhere.');
+      else if (String(hemLabel) === 'remove') lines.push('REMOVE the hem/side tag completely — clean seam, no mark left.');
+      lines.push('NEVER add or invent any label, tag, patch or logo the product does not clearly have in the product images.');
+    }
     const fullPrompt = lines.join(' ');
     console.log('  prompt -> ' + fullPrompt.slice(0, 220) + '…');
 

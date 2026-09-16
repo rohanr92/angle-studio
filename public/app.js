@@ -719,5 +719,54 @@
     }
   });
 
+  // --- Angles tab options: product type, fit/drape, labels (injected UI + request enrichment) ---
+  (function anglesOptions() {
+    const tabs = document.getElementById('workspaceTabs');
+    if (!tabs) return;
+    const bar = document.createElement('div');
+    bar.id = 'anglesOptionsBar';
+    bar.innerHTML = '<div class="spec-row" style="margin:10px 0 0">'
+      + '<label class="spec-field"><span>Product type</span><select id="anglesTypeSelect">'
+      + '<option value="shoes" selected>Shoes</option><option value="top">Top</option><option value="bottoms">Bottoms</option><option value="dress">Dress</option><option value="bag">Bag</option>'
+      + '</select></label>'
+      + '<label class="spec-field"><span>Fit / drape (apparel)</span><select id="anglesFitSelect">'
+      + '<option value="product" selected>Match my product</option><option value="notrelaxed">Not too relaxed</option><option value="slight">Slightly relaxed</option><option value="relaxed">Relaxed</option><option value="toorelaxed">Too relaxed (oversized)</option><option value="slim">Slim</option><option value="fitted">Body-fitted</option><option value="other">Custom…</option>'
+      + '</select></label></div>'
+      + '<input id="anglesFitOther" type="text" placeholder="Custom presentation, e.g. softly folded" style="margin-top:8px; display:none">'
+      + '<div class="spec-row" style="margin-top:8px">'
+      + '<label class="spec-field"><span>Neck label</span><select id="anglesNeckSelect">'
+      + '<option value="keep" selected>As my product</option><option value="remove">Remove completely</option><option value="none">Garment has none</option>'
+      + '</select></label>'
+      + '<label class="spec-field"><span>Hem / side label</span><select id="anglesHemSelect">'
+      + '<option value="keep" selected>As my product</option><option value="remove">Remove completely</option><option value="none">Garment has none</option>'
+      + '</select></label></div>';
+    tabs.parentNode.insertBefore(bar, tabs.nextSibling);
+    const fitSel = bar.querySelector('#anglesFitSelect');
+    fitSel.addEventListener('change', () => { bar.querySelector('#anglesFitOther').style.display = fitSel.value === 'other' ? '' : 'none'; });
+    function syncVisibility() {
+      const active = tabs.querySelector('.tab.is-active, .tab[aria-selected="true"]');
+      const ws = active ? active.dataset.ws : null;
+      bar.style.display = (!ws || ws === 'angles') ? '' : 'none';
+    }
+    tabs.addEventListener('click', () => setTimeout(syncVisibility, 0));
+    syncVisibility();
+    // enrich every generate-angle request with the selected options
+    const origFetch = window.fetch.bind(window);
+    window.fetch = function (url, opts) {
+      try {
+        if (typeof url === 'string' && url.indexOf('/api/generate-angle') === 0 && opts && opts.body) {
+          const body = JSON.parse(opts.body);
+          body.productType = bar.querySelector('#anglesTypeSelect').value;
+          body.prodFit = fitSel.value;
+          body.prodFitLabel = bar.querySelector('#anglesFitOther').value.trim();
+          body.neckLabel = bar.querySelector('#anglesNeckSelect').value;
+          body.hemLabel = bar.querySelector('#anglesHemSelect').value;
+          opts = Object.assign({}, opts, { body: JSON.stringify(body) });
+        }
+      } catch (e) { /* never break a request over options */ }
+      return origFetch(url, opts);
+    };
+  })();
+
   applyWorkspace('angles');
 })();
