@@ -1022,6 +1022,7 @@ app.post('/api/edit', async (req, res) => {
       mPart = 'bow', mPartLabel = '', material = 'leather', materialLabel = '', mColor = 'keep', mColorLabel = '',
       neckLabel = 'keep', hemLabel = 'keep',
       otherColor = 'keep', otherColorLabel = '',
+      topStyle = 'product', topStyleLabel = '', swapNotes = '',
       fit = 'product', fitLabel = '', bottomsStyle = 'product', bottomsLabel = '', logosOpt = 'keep',
       bgChoice = 'white', bgCustom = '', shadowSrc = 'auto',
       copyAngle = 'on', copyShape = 'on', copyShadow = 'on', copyBg = 'on', colorLock = 'on',
@@ -1241,6 +1242,17 @@ app.post('/api/edit', async (req, res) => {
         skinny: 'BOTTOMS STYLE: SKINNY — tight through the whole leg.',
         other: bottomsLabel ? 'BOTTOMS STYLE: ' + bottomsLabel : '',
       };
+      const TSTYLES = {
+        product: '',
+        regular: 'TOP STYLE: REGULAR cut and length.',
+        crop: 'TOP STYLE: CROPPED — the hem ends above the hip, around the natural waistline.',
+        boxy: 'TOP STYLE: BOXY — a square, roomy cut with a straight, wide body.',
+        drop: 'TOP STYLE: DROP SHOULDER — the shoulder seams sit visibly below the natural shoulder line.',
+        longline: 'TOP STYLE: LONGLINE — the hem extends below the hip.',
+        other: topStyleLabel ? 'TOP STYLE: ' + topStyleLabel : '',
+      };
+      const tText = TSTYLES[String(topStyle)] !== undefined ? TSTYLES[String(topStyle)] : '';
+      const notesText = String(swapNotes || '').trim() ? 'Extra instructions: ' + String(swapNotes).trim() : '';
       const fitText = FITS[String(fit)] !== undefined ? FITS[String(fit)] : FITS.product;
       const bText = BSTYLES[String(bottomsStyle)] !== undefined ? BSTYLES[String(bottomsStyle)] : '';
       const swapLabelRules = 'LABEL RULES: the garment has ONLY the labels and tags visible in my product photos — NEVER add or invent any label, tag, patch, embroidery or logo anywhere on it. '
@@ -1265,7 +1277,7 @@ app.post('/api/edit', async (req, res) => {
         : 'LOGOS AND LABELS: keep every logo, label, hem tag and marking exactly as it appears on my product in the product photos — do not remove or invent any.';
       instruction = [
         `Edit sample photo 1. Keep absolutely everything the same — the person, face, pose, skin, hair, all other clothing, the background, lighting, colours and shadows. Replace ONLY the ${cat} worn in the photo with my product shown in product photo${P > 1 ? 's 1 to ' + P : ' 1'}. My product must be reproduced exactly: same shape, colour, material, texture and details as in the product photos, with correct perspective, size and lighting for the scene.`,
-        fitText, bText, logosText, swapLabelRules, swapColourTruth, otherText,
+        fitText, tText, bText, logosText, swapLabelRules, swapColourTruth, otherText, notesText,
         'Output one photorealistic image only.',
       ].filter(Boolean).join(' ');
       if (String(prompt).trim()) instruction += ' Extra instructions: ' + String(prompt).trim();

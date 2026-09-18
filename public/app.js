@@ -504,6 +504,10 @@
   const otherColorSelect = document.getElementById('otherColorSelect');
   const otherColorInput = document.getElementById('otherColorInput');
   otherColorSelect.addEventListener('change', () => { otherColorInput.style.display = otherColorSelect.value === 'other' ? '' : 'none'; });
+  const topStyleSelect = document.getElementById('topStyleSelect');
+  const topStyleOther = document.getElementById('topStyleOther');
+  const swapNotesInput = document.getElementById('swapNotesInput');
+  topStyleSelect.addEventListener('change', () => { topStyleOther.style.display = topStyleSelect.value === 'other' ? '' : 'none'; });
 
   function renderBases() {
     basesThumbsHost.innerHTML = '';
@@ -666,6 +670,7 @@
               category: categorySelect.value, categoryLabel: categoryOther.value.trim(),
               fit: fitSelect.value, fitLabel: fitOther.value.trim(),
               otherColor: (otherColorSelect || { value: 'keep' }).value, otherColorLabel: (otherColorInput || { value: '' }).value.trim(),
+              topStyle: (topStyleSelect || { value: 'product' }).value, topStyleLabel: (topStyleOther || { value: '' }).value.trim(), swapNotes: (swapNotesInput || { value: '' }).value.trim(),
               bottomsStyle: bottomsStyleSelect.value, bottomsLabel: bottomsOther.value.trim(),
               logosOpt: logosOptSelect.value,
               prompt: workspace === 'free' ? freePromptInput.value.trim() : (workspace === 'recolor' ? ((recolorNotes.value || '') + ' ' + (promptInput.value || '')).trim() : (promptInput.value || '').trim()),
