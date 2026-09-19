@@ -36,6 +36,7 @@
       <button type="button" class="tab" data-ws="apparel">Apparel</button>
       <button type="button" class="tab" data-ws="recolor">Recolor</button>
       <button type="button" class="tab" data-ws="material">Material</button>
+      <button type="button" class="tab" data-ws="sheet">Batch sheet</button>
       <button type="button" class="tab" data-ws="bg">Background</button>
       <button type="button" class="tab" data-ws="pose">Angle match</button>
     </div>
@@ -274,6 +275,26 @@
           <span class="dropzone__text">Drop product images</span>
           <span class="dropzone__meta">JPG / PNG · up to 30</span>
         </label>
+      </section>
+
+      <section class="panel" id="sheetPanel" hidden>
+        <header class="panel__head"><span class="panel__num">Bs</span><h2>Batch from sheet</h2></header>
+        <p class="panel__hint">Upload a buying sheet (.xlsx). Every embedded photo is pulled out with its style name and colours. Review the list, fix any name, then generate: one professional side-profile angle per colour, pure white background, no sole logo — each output named Style-Colour.</p>
+        <label class="dropzone" for="sheetFileInput" style="padding:14px; margin-bottom:10px">
+          <span class="dropzone__text">Drop the .xlsx sheet</span>
+          <span class="dropzone__meta">Excel with embedded photos</span>
+        </label>
+        <input id="sheetFileInput" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+        <div id="sheetReview" style="margin-bottom:10px"></div>
+        <div class="spec-row" style="margin-bottom:8px">
+          <label class="spec-field"><span>Resolution</span>
+            <select id="sheetResolution"><option value="2k" selected>2K</option><option value="4k">4K</option></select>
+          </label>
+          <label class="spec-field"><span>Aspect</span>
+            <select id="sheetAspect"><option value="1:1" selected>1:1</option><option value="4:5">4:5</option><option value="auto">Auto</option></select>
+          </label>
+        </div>
+        <button id="sheetGenerateBtn" class="btn" type="button" style="width:100%">Generate batch</button>
       </section>
 
       <section class="panel" id="materialPanel" hidden>

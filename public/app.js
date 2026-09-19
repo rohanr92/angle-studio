@@ -377,6 +377,7 @@
   const logoPanel = document.getElementById('logoPanel');
   const recolorPanel = document.getElementById('recolorPanel');
   const materialPanel = document.getElementById('materialPanel');
+  const sheetPanel = document.getElementById('sheetPanel');
   const mPartSelect = document.getElementById('mPartSelect');
   const materialSelect = document.getElementById('materialSelect');
   const mPartOther = document.getElementById('mPartOther');
@@ -538,6 +539,7 @@
     logoPanel.hidden = ws !== 'logo';
     recolorPanel.hidden = ws !== 'recolor';
     materialPanel.hidden = ws !== 'material';
+    if (sheetPanel) sheetPanel.hidden = ws !== 'sheet';
     bgPanel.hidden = ws !== 'bg';
     posePanel.hidden = ws !== 'pose';
     apparelPanel.hidden = ws !== 'apparel';
@@ -771,6 +773,81 @@
       } catch (e) { /* never break a request over options */ }
       return origFetch(url, opts);
     };
+  })();
+
+  // --- Batch sheet: parse xlsx server-side, review, generate per colour ---
+  (function batchSheet() {
+    const fileInput = document.getElementById('sheetFileInput');
+    const reviewEl = document.getElementById('sheetReview');
+    const genBtn = document.getElementById('sheetGenerateBtn');
+    if (!fileInput || !genBtn) return;
+    let sheet = null;
+    function renderReview() {
+      reviewEl.innerHTML = '';
+      if (!sheet) return;
+      sheet.items.forEach((it, idx) => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex; gap:8px; align-items:center; margin-bottom:8px';
+        const img = document.createElement('img');
+        img.src = it.thumb; img.style.cssText = 'width:64px; height:64px; object-fit:cover; border-radius:6px; flex:none';
+        const styleIn = document.createElement('input'); styleIn.type = 'text'; styleIn.value = it.style || ''; styleIn.placeholder = 'Style name'; styleIn.style.cssText = 'width:34%';
+        styleIn.addEventListener('input', () => { it.style = styleIn.value; });
+        const colorsIn = document.createElement('input'); colorsIn.type = 'text'; colorsIn.value = (it.colors || []).join(', '); colorsIn.placeholder = 'Colours, comma separated'; colorsIn.style.cssText = 'flex:1';
+        colorsIn.addEventListener('input', () => { it.colors = colorsIn.value.split(',').map(function (x) { return x.trim(); }).filter(Boolean); });
+        const rm = document.createElement('button'); rm.type = 'button'; rm.textContent = '×';
+        rm.addEventListener('click', () => { sheet.items.splice(idx, 1); renderReview(); });
+        row.appendChild(img); row.appendChild(styleIn); row.appendChild(colorsIn); row.appendChild(rm);
+        reviewEl.appendChild(row);
+      });
+    }
+    fileInput.addEventListener('change', async (e) => {
+      const f = e.target.files && e.target.files[0]; if (!f) return;
+      setStatus('Reading the sheet…');
+      const fd = new FormData(); fd.append('sheet', f);
+      try {
+        const r = await fetch('/api/sheet', { method: 'POST', body: fd });
+        const d = await r.json();
+        if (!r.ok || d.error) { setStatus(d.error || 'Could not read the sheet.', 'is-error'); return; }
+        sheet = d; renderReview();
+        setStatus('Found ' + d.items.length + ' photos — check styles and colours, then Generate batch.', 'is-ok');
+      } catch (err) { setStatus('Sheet upload failed: ' + err.message, 'is-error'); }
+    });
+    genBtn.addEventListener('click', async () => {
+      if (!sheet || !sheet.items.length) return setStatus('Upload the .xlsx sheet first.', 'is-error');
+      const key = (typeof googleKeyInput !== 'undefined' && googleKeyInput) ? googleKeyInput.value.trim() : (localStorage.getItem('googleApiKey') || '');
+      if (!key) return setStatus('Enter your Google API key in the Google API key section first.', 'is-error');
+      const tasks = [];
+      sheet.items.forEach((it) => {
+        const style = (it.style || '').trim() || 'Style';
+        const colors = (it.colors && it.colors.length) ? it.colors : ['as shown'];
+        colors.forEach((c) => tasks.push({ baseIndex: it.index, color: c, outName: style + ' - ' + c }));
+      });
+      if (!tasks.length) return setStatus('Nothing to generate — add at least one colour.', 'is-error');
+      const resolution = document.getElementById('sheetResolution').value;
+      const aspect = document.getElementById('sheetAspect').value;
+      renderPlaceholders(tasks.map((t) => t.outName), 1);
+      genBtn.disabled = true;
+      setStatus('Generating ' + tasks.length + ' angle image(s)…');
+      const finished = []; let done = 0;
+      await Promise.all(tasks.map(async (t, idx) => {
+        await new Promise((r) => setTimeout(r, idx * 250));
+        let result;
+        try {
+          const resp = await fetch('/api/edit', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ async: '1', referenceId: sheet.referenceId, baseIndex: t.baseIndex, mode: 'sheetangle', sheetColor: t.color, outName: t.outName, variant: 1, resolution, aspectRatio: aspect, provider: 'google', googleApiKey: key }),
+          });
+          result = await resp.json();
+          if (result && result.jobId) result = await pollJob(result.jobId);
+        } catch (err) { result = { status: 'FAILED', error: err.message }; }
+        renderCellResult(idx, 1, t.outName, result, aspect, resolution);
+        if (result && result.status === 'COMPLETED') finished.push({ label: t.outName, url: result.imageUrl });
+        done++; sheetSub.textContent = done + ' of ' + tasks.length + ' frames developed.';
+      }));
+      genBtn.disabled = false;
+      if (finished.length) { downloadAllBtn.hidden = false; downloadAllBtn.onclick = () => downloadAll(finished); }
+      setStatus('Batch done — ' + finished.length + ' of ' + tasks.length + ' succeeded. Download the zip now.', finished.length ? 'is-ok' : 'is-error');
+    });
   })();
 
   applyWorkspace('angles');

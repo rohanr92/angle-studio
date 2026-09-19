@@ -883,7 +883,7 @@ app.post('/api/generate-angle', async (req, res) => {
       let cleaned;
       try { cleaned = PP ? await cleanBuffer(g.buf, variant, g.mime, guideMode === 'style' ? 0 : undefined) : await passthrough(g.buf, g.mime); } catch (e) { cleaned = { buf: g.buf, mime: g.mime, width: 0, height: 0 }; }
       const id = crypto.randomUUID();
-      generatedStore.set(id, { ...cleaned, createdAt: Date.now() });
+      generatedStore.set(id, { ...cleaned, createdAt: Date.now(), label: ((typeof req !== 'undefined' && req.body && req.body.outName) ? String(req.body.outName).replace(/[^\w\-. ]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60) + '-take' + (typeof variant !== 'undefined' ? variant : 1) : undefined) }); if (typeof capGeneratedStore === 'function') capGeneratedStore();
       console.log(`  [google/${gModel}] frame "${angleLabel}" v${variant}: ${PP ? 'post-processed' : 'RAW (untouched)'} done ${cleaned.width}x${cleaned.height} (requested ${String(resolution).toUpperCase()})`);
       return res.json({ angleLabel, angleIndex, variant, status: 'COMPLETED', provider: 'google', imageUrl: `/api/image/${id}.png`, width: cleaned.width, height: cleaned.height });
     }
@@ -937,7 +937,7 @@ app.post('/api/generate-angle', async (req, res) => {
         ? await cleanBackground(generated[0], variant, guideMode === 'style' ? 0 : undefined)
         : await passthrough(Buffer.from((await axios.get(generated[0], { responseType: 'arraybuffer' })).data), 'image/png');
       const id = crypto.randomUUID();
-      generatedStore.set(id, { ...cleaned, createdAt: Date.now() });
+      generatedStore.set(id, { ...cleaned, createdAt: Date.now(), label: ((typeof req !== 'undefined' && req.body && req.body.outName) ? String(req.body.outName).replace(/[^\w\-. ]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60) + '-take' + (typeof variant !== 'undefined' ? variant : 1) : undefined) }); if (typeof capGeneratedStore === 'function') capGeneratedStore();
       imageUrl = `/api/image/${id}.png`;
       width = cleaned.width; height = cleaned.height;
       console.log(`  frame "${angleLabel}" v${variant}: done ${width}x${height} (requested ${String(resolution).toUpperCase()})`);
@@ -997,6 +997,90 @@ app.get('/api/image/:id', (req, res) => {
 // so no HTTP request ever outlives the hosting proxy's 5-minute limit.
 const jobsStore = new Map();
 setInterval(() => { for (const [id, j] of jobsStore) if (j.createdAt < Date.now() - 30 * 60e3) jobsStore.delete(id); }, 60e3);
+let AdmZip = null; try { AdmZip = require('adm-zip'); } catch (e) { AdmZip = null; }
+const multerLib = require('multer');
+const sheetUpload = multerLib({ storage: multerLib.memoryStorage(), limits: { fileSize: 80 * 1024 * 1024 } });
+
+function parseSheetWorkbook(buf) {
+  const zip = new AdmZip(buf);
+  const read = (p) => { const e = zip.getEntry(p); return e ? zip.readAsText(e) : null; };
+  const readBin = (p) => { const e = zip.getEntry(p); return e ? e.getData() : null; };
+  const colLetters = (ref) => { const m = ref.match(/^([A-Z]+)(\d+)$/); if (!m) return null; let c = 0; for (const ch of m[1]) c = c * 26 + (ch.charCodeAt(0) - 64); return { col: c - 1, row: Number(m[2]) - 1 }; };
+  const ssXml = read('xl/sharedStrings.xml') || '';
+  const shared = [...ssXml.matchAll(/<si>([\s\S]*?)<\/si>/g)].map((m) => [...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map((t) => t[1]).join('').replace(/&amp;/g, '&'));
+  const wb = read('xl/workbook.xml') || '';
+  const wbRels = read('xl/_rels/workbook.xml.rels') || '';
+  const relMap = {}; [...wbRels.matchAll(/Id="([^"]+)"[^>]*Target="([^"]+)"/g)].forEach((m) => { relMap[m[1]] = m[2].replace(/^\//, ''); });
+  const sheets = [...wb.matchAll(/<sheet[^>]*name="([^"]+)"[^>]*r:id="([^"]+)"/g)].map((m) => ({ name: m[1], path: 'xl/' + String(relMap[m[2]] || '').replace(/^xl\//, '') }));
+  const pics = [];
+  for (const sh of sheets) {
+    const sx = read(sh.path); if (!sx) continue;
+    const cells = {};
+    [...sx.matchAll(/<c ([^>]*)>([\s\S]*?)<\/c>/g)].forEach((m) => {
+      const rAttr = m[1].match(/r="([A-Z]+\d+)"/); if (!rAttr) return;
+      const tAttr = m[1].match(/t="(\w+)"/);
+      const pos = colLetters(rAttr[1]); if (!pos) return;
+      const type = tAttr ? tAttr[1] : '';
+      let txt = null;
+      if (type === 's') { const v = m[2].match(/<v>(\d+)<\/v>/); if (v) txt = shared[Number(v[1])]; }
+      else if (type === 'inlineStr' || type === 'str') { const t = m[2].match(/<t[^>]*>([\s\S]*?)<\/t>/) || m[2].match(/<v>([\s\S]*?)<\/v>/); if (t) txt = t[1]; }
+      else { const v = m[2].match(/<v>([\s\S]*?)<\/v>/); if (v) txt = v[1]; }
+      if (txt != null && String(txt).trim()) cells[pos.row + ':' + pos.col] = String(txt).trim();
+    });
+    const base = sh.path.split('/').pop();
+    const srel = read('xl/worksheets/_rels/' + base + '.rels') || '';
+    const dm = srel.match(/Target="([^"]*drawing[^"]*)"/); if (!dm) continue;
+    const dpath = 'xl/' + dm[1].replace(/\.\.\//g, '');
+    const dx = read(dpath) || '';
+    const drel = read(dpath.replace(/drawings\//, 'drawings/_rels/') + '.rels') || '';
+    const dRelMap = {}; [...drel.matchAll(/Id="([^"]+)"[^>]*Target="([^"]+)"/g)].forEach((m) => { dRelMap[m[1]] = 'xl/' + m[2].replace(/\.\.\//g, ''); });
+    const anchors = [...dx.matchAll(/<xdr:(twoCellAnchor|oneCellAnchor)[^>]*>([\s\S]*?)<\/xdr:\1>/g)];
+    for (const a of anchors) {
+      const body = a[2];
+      const from = body.match(/<xdr:from>[\s\S]*?<xdr:col>(\d+)<\/xdr:col>[\s\S]*?<xdr:row>(\d+)<\/xdr:row>/);
+      const to = body.match(/<xdr:to>[\s\S]*?<xdr:col>(\d+)<\/xdr:col>[\s\S]*?<xdr:row>(\d+)<\/xdr:row>/);
+      const blip = body.match(/r:embed="([^"]+)"/);
+      if (!from || !blip || !dRelMap[blip[1]]) continue;
+      const fc = Number(from[1]), fr = Number(from[2]);
+      const tc = to ? Number(to[1]) : fc + 3, tr = to ? Number(to[2]) : fr + 10;
+      const texts = [];
+      for (let r = Math.max(0, fr - 1); r <= tr + 5; r++) for (let c = Math.max(0, fc - 2); c <= tc + 4; c++) { const t = cells[r + ':' + c]; if (t) texts.push({ r, c, t }); }
+      texts.sort((x, y) => x.r - y.r || x.c - y.c);
+      const labels = []; for (const t of texts) if (!/^[\d.,]+$/.test(t.t) && !labels.includes(t.t)) labels.push(t.t);
+      pics.push({ sheet: sh.name, media: dRelMap[blip[1]], data: readBin(dRelMap[blip[1]]), style: labels[0] || '', colors: labels.slice(1, 7) });
+    }
+  }
+  return pics.filter((p) => p.data && p.data.length > 2000);
+}
+
+app.post('/api/sheet', sheetUpload.single('sheet'), async (req, res) => {
+  try {
+    if (!AdmZip) return res.status(400).json({ error: 'Sheet reading needs one extra package. In the project folder run: npm install adm-zip  — then restart / push.' });
+    if (!req.file) return res.status(400).json({ error: 'Upload an .xlsx file.' });
+    const pics = parseSheetWorkbook(req.file.buffer);
+    if (!pics.length) return res.status(400).json({ error: 'No embedded images found in that file.' });
+    const bases = []; const items = [];
+    for (let i = 0; i < pics.length; i++) {
+      const p = pics[i];
+      try {
+        const big = await sharp(p.data).rotate().resize({ width: 1536, height: 1536, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 92 }).toBuffer();
+        const meta = await sharp(big).metadata();
+        const thumb = await sharp(p.data).rotate().resize({ width: 170 }).jpeg({ quality: 70 }).toBuffer();
+        bases.push({ base64: big.toString('base64'), mime: 'image/jpeg', width: meta.width, height: meta.height, name: 'sheet-' + (i + 1) + '.jpg' });
+        items.push({ index: bases.length - 1, sheet: p.sheet, thumb: 'data:image/jpeg;base64,' + thumb.toString('base64'), style: p.style, colors: p.colors });
+      } catch (e) { /* skip unreadable image */ }
+    }
+    if (!items.length) return res.status(400).json({ error: 'Could not read any image from the file.' });
+    const referenceId = crypto.randomUUID();
+    capReferenceStore(referenceStore);
+    referenceStore.set(referenceId, { createdAt: Date.now(), product: [], bases, logo: null, bg: null, labels: [] });
+    console.log('[sheet] parsed ' + items.length + ' images from ' + (req.file.originalname || 'workbook'));
+    res.json({ referenceId, items });
+  } catch (err) {
+    res.status(400).json({ error: 'Could not read the sheet: ' + err.message });
+  }
+});
+
 app.get('/api/recent', (req, res) => {
   const items = [];
   for (const [id, g] of generatedStore) items.push({ id, createdAt: g.createdAt, width: g.width || 0, height: g.height || 0, label: g.label || '' });
@@ -1023,6 +1107,7 @@ app.post('/api/edit', async (req, res) => {
       neckLabel = 'keep', hemLabel = 'keep',
       otherColor = 'keep', otherColorLabel = '',
       topStyle = 'product', topStyleLabel = '', swapNotes = '',
+      sheetColor = '',
       fit = 'product', fitLabel = '', bottomsStyle = 'product', bottomsLabel = '', logosOpt = 'keep',
       bgChoice = 'white', bgCustom = '', shadowSrc = 'auto',
       copyAngle = 'on', copyShape = 'on', copyShadow = 'on', copyBg = 'on', colorLock = 'on',
@@ -1036,7 +1121,7 @@ app.post('/api/edit', async (req, res) => {
     const base = isApparel ? (entry.product && entry.product[Number(baseIndex)]) : (entry.bases && entry.bases[Number(baseIndex)]);
     if (!base) return res.status(400).json({ error: 'No ' + (isApparel ? 'product' : 'sample') + ' photo at index ' + baseIndex });
     const styleRef = isApparel ? (entry.bases && entry.bases[0]) : null;
-    if (mode !== 'logo' && mode !== 'recolor' && mode !== 'bg' && mode !== 'pose' && mode !== 'material' && !entry.product.length) return res.status(400).json({ error: 'Upload product photos too.' });
+    if (mode !== 'logo' && mode !== 'recolor' && mode !== 'bg' && mode !== 'pose' && mode !== 'material' && mode !== 'sheetangle' && !entry.product.length) return res.status(400).json({ error: 'Upload product photos too.' });
 
     // async mode: acknowledge now, deliver via /api/job/:id
     let jobId = null;
@@ -1054,7 +1139,17 @@ app.post('/api/edit', async (req, res) => {
     const cat = catNames[category] || catNames.shoes;
 
     let instruction;
-    if (mode === 'material') {
+    if (mode === 'sheetangle') {
+      const colr = String(sheetColor || '').trim() || 'the shown';
+      instruction = [
+        'The attached photo shows my footwear product — possibly several colourways together, at a casual angle, on a non-studio background (it may be a supplier or showroom photo).',
+        'Create ONE professional e-commerce product photograph of ONLY the ' + colr + ' colourway: a single RIGHT shoe in a true side profile, toe pointing to the RIGHT, standing flat, like a premium Nordstrom catalogue shot.',
+        'Reproduce MY shoe exactly — same design, construction, materials, texture and details as in the photo. If the photo does not show the ' + colr + ' colourway, recolour my shoe accurately to ' + colr + ' with a realistic finish for that material.',
+        'BACKGROUND: pure seamless WHITE #FFFFFF edge to edge, no props, no other shoes, no surface texture. SHADOW: one soft, tight, natural contact shadow directly under the sole.',
+        'The outsole and every surface stay CLEAN: NO logo, NO text, NO embossing on the sole. Premium studio lighting, sharp focus, true-to-life colour. Output one photorealistic image only.',
+      ].join(' ');
+      if (String(prompt).trim()) instruction += ' Extra instructions: ' + String(prompt).trim();
+    } else if (mode === 'material') {
       const MPARTS = {
         bow: 'the bow on the toe',
         sole: 'the sole (outsole and midsole edge)',
@@ -1360,7 +1455,7 @@ app.post('/api/edit', async (req, res) => {
     const cleaned = await passthrough(outBuf, targetAspect ? 'image/png' : g.mime);
     console.log(`  [edit/${mode}] photo ${Number(baseIndex) + 1} v${variant}: done ${cleaned.width}x${cleaned.height} (requested ${String(resolution).toUpperCase()}, generated ${aspect}${targetAspect ? ', padded to ' + targetAspect : ''}) via ${provider}/${model}`);
     const id = crypto.randomUUID();
-    generatedStore.set(id, { ...cleaned, createdAt: Date.now() });
+    generatedStore.set(id, { ...cleaned, createdAt: Date.now(), label: ((typeof req !== 'undefined' && req.body && req.body.outName) ? String(req.body.outName).replace(/[^\w\-. ]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60) + '-take' + (typeof variant !== 'undefined' ? variant : 1) : undefined) }); if (typeof capGeneratedStore === 'function') capGeneratedStore();
     req._finishJob({ status: 'COMPLETED', imageUrl: `/api/image/${id}.png`, width: cleaned.width, height: cleaned.height, variant, baseIndex });
   } catch (err) {
     console.error('edit error:', err.message);
