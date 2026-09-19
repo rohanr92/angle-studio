@@ -800,18 +800,31 @@
         reviewEl.appendChild(row);
       });
     }
-    fileInput.addEventListener('change', async (e) => {
-      const f = e.target.files && e.target.files[0]; if (!f) return;
+    function sheetMsg(text, isErr) {
+      reviewEl.innerHTML = '<p class="panel__hint" style="' + (isErr ? 'color:#b4462f;' : '') + 'margin:6px 0">' + text + '</p>';
+    }
+    async function handleSheetFile(f) {
+      if (!f) return;
+      if (!/\.xlsx$/i.test(f.name || '')) { sheetMsg('That is not an .xlsx file — export the sheet as Excel (.xlsx) and try again.', true); return; }
+      sheetMsg('Reading the sheet…');
       setStatus('Reading the sheet…');
       const fd = new FormData(); fd.append('sheet', f);
       try {
         const r = await fetch('/api/sheet', { method: 'POST', body: fd });
-        const d = await r.json();
-        if (!r.ok || d.error) { setStatus(d.error || 'Could not read the sheet.', 'is-error'); return; }
+        let d;
+        try { d = await r.json(); } catch (e2) { d = { error: 'Server replied unexpectedly (' + r.status + ') — is the latest version deployed?' }; }
+        if (!r.ok || d.error) { sheetMsg(d.error || 'Could not read the sheet.', true); setStatus(d.error || 'Could not read the sheet.', 'is-error'); return; }
         sheet = d; renderReview();
         setStatus('Found ' + d.items.length + ' photos — check styles and colours, then Generate batch.', 'is-ok');
-      } catch (err) { setStatus('Sheet upload failed: ' + err.message, 'is-error'); }
-    });
+      } catch (err) { sheetMsg('Sheet upload failed: ' + err.message, true); setStatus('Sheet upload failed: ' + err.message, 'is-error'); }
+    }
+    fileInput.addEventListener('change', (e) => { handleSheetFile(e.target.files && e.target.files[0]); fileInput.value = ''; });
+    const sheetDrop = document.querySelector('label[for="sheetFileInput"]');
+    if (sheetDrop) {
+      ['dragenter', 'dragover'].forEach((ev) => sheetDrop.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); sheetDrop.style.opacity = '0.7'; }));
+      ['dragleave', 'drop'].forEach((ev) => sheetDrop.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); sheetDrop.style.opacity = ''; }));
+      sheetDrop.addEventListener('drop', (e) => { const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; handleSheetFile(f); });
+    }
     genBtn.addEventListener('click', async () => {
       if (!sheet || !sheet.items.length) return setStatus('Upload the .xlsx sheet first.', 'is-error');
       const key = (typeof googleKeyInput !== 'undefined' && googleKeyInput) ? googleKeyInput.value.trim() : (localStorage.getItem('googleApiKey') || '');
