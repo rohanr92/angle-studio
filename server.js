@@ -736,6 +736,7 @@ app.post(
     }
 
     const referenceId = crypto.randomUUID();
+    capReferenceStore(referenceStore);
     referenceStore.set(referenceId, {
       product: await Promise.all(productFiles.map(async (f) => { const img = await fileToImgResized(f, 1536); if (sharp) { try { const m = await sharp(f.buffer).metadata(); img.w = m.width; img.h = m.height; } catch (e) {} } return img; })),
       angles: await Promise.all(angleFiles.map((f) => fileToImgResized(f, 1024))),
@@ -997,6 +998,26 @@ app.get('/api/image/:id', (req, res) => {
 // so no HTTP request ever outlives the hosting proxy's 5-minute limit.
 const jobsStore = new Map();
 setInterval(() => { for (const [id, j] of jobsStore) if (j.createdAt < Date.now() - 30 * 60e3) jobsStore.delete(id); }, 60e3);
+// Memory caps: keep stores bounded when many people use the site at once
+const MAX_STORED_IMAGES = Number(process.env.MAX_STORED_IMAGES || 120);
+function capGeneratedStore() {
+  while (generatedStore.size > MAX_STORED_IMAGES) {
+    let oldestId = null, oldest = Infinity;
+    for (const [id, g] of generatedStore) { const t = g.createdAt || 0; if (t < oldest) { oldest = t; oldestId = id; } }
+    if (!oldestId) break;
+    generatedStore.delete(oldestId);
+  }
+}
+const MAX_STORED_UPLOADS = Number(process.env.MAX_STORED_UPLOADS || 30);
+function capReferenceStore(store) {
+  while (store.size > MAX_STORED_UPLOADS) {
+    let oldestId = null, oldest = Infinity;
+    for (const [id, e] of store) { const t = e.createdAt || 0; if (t < oldest) { oldest = t; oldestId = id; } }
+    if (!oldestId) break;
+    store.delete(oldestId);
+  }
+}
+
 let AdmZip = null; try { AdmZip = require('adm-zip'); } catch (e) { AdmZip = null; }
 const multerLib = require('multer');
 const sheetUpload = multerLib({ storage: multerLib.memoryStorage(), limits: { fileSize: 80 * 1024 * 1024 } });
