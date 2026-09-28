@@ -378,6 +378,8 @@
   const recolorPanel = document.getElementById('recolorPanel');
   const materialPanel = document.getElementById('materialPanel');
   const sheetPanel = document.getElementById('sheetPanel');
+  const groupPanel = document.getElementById('groupPanel');
+  const modelfixPanel = document.getElementById('modelfixPanel');
   const mPartSelect = document.getElementById('mPartSelect');
   const materialSelect = document.getElementById('materialSelect');
   const mPartOther = document.getElementById('mPartOther');
@@ -540,6 +542,8 @@
     recolorPanel.hidden = ws !== 'recolor';
     materialPanel.hidden = ws !== 'material';
     if (sheetPanel) sheetPanel.hidden = ws !== 'sheet';
+    if (groupPanel) groupPanel.hidden = ws !== 'group';
+    if (modelfixPanel) modelfixPanel.hidden = ws !== 'modelfix';
     bgPanel.hidden = ws !== 'bg';
     posePanel.hidden = ws !== 'pose';
     apparelPanel.hidden = ws !== 'apparel';
@@ -612,7 +616,7 @@
     if (workspace === 'bg' && ((bgChoiceSelect.value === 'ref' || shadowSrcSelect.value === 'ref') && !state.bgRefFile)) return setStatus('Add the reference image, or switch Background/Shadow away from "From reference image".', 'is-error');
     if (workspace === 'recolor' && recolorColorSelect.value === 'ref' && !state.recolorRefFile) return setStatus('Add the colour reference image, or pick another colour.', 'is-error');
     if (workspace === 'logo' && !state.logoFile) return setStatus('Upload your logo (Brand logo upload).', 'is-error');
-    if (workspace !== 'logo' && workspace !== 'recolor' && workspace !== 'bg' && workspace !== 'pose' && workspace !== 'material' && !state.refFiles.length) return setStatus('Upload product photos too.', 'is-error');
+    if (workspace !== 'logo' && workspace !== 'recolor' && workspace !== 'bg' && workspace !== 'pose' && workspace !== 'material' && workspace !== 'modelfix' && !state.refFiles.length) return setStatus('Upload product photos too.', 'is-error');
     if (workspace === 'free' && !freePromptInput.value.trim()) return setStatus('Write your prompt (type @ to reference photos).', 'is-error');
     generateBtn.disabled = true;
     const resolution = resolutionSelect.value;
@@ -631,6 +635,7 @@
       if (workspace === 'recolor' && state.recolorRefFile) fd.append('bg', state.recolorRefFile);
       if (workspace === 'pose' && state.poseRefFile) fd.append('bg', state.poseRefFile);
       if (workspace === 'material' && state.materialRefFile) fd.append('bg', state.materialRefFile);
+      if (workspace === 'modelfix' && state.fxBoardBlob) fd.append('bg', state.fxBoardBlob, 'reference-board.jpg');
       if (workspace === 'apparel') state.labelFiles.forEach((f) => fd.append('labels', f));
       const r = await fetch('/api/reference', { method: 'POST', body: fd });
       const d = await r.json();
@@ -655,7 +660,7 @@
               referenceId, baseIndex: idx, variant: v, resolution, provider, model, googleApiKey, aspectRatio: aspectSelect.value,
               brandText: (document.getElementById('brandTextInput') || { value: '' }).value, labelOverlay: (document.getElementById('labelOverlaySelect') || { value: 'on' }).value, logoMode: (document.getElementById('logoModeSelect') || { value: 'replace' }).value,
               neckLabel: ((workspace === 'lifestyle' ? document.getElementById('swapNeckSelect') : workspace === 'pose' ? document.getElementById('poseNeckSelect') : document.getElementById('neckLabelSelect')) || { value: 'keep' }).value, hemLabel: ((workspace === 'lifestyle' ? document.getElementById('swapHemSelect') : workspace === 'pose' ? document.getElementById('poseHemSelect') : document.getElementById('hemLabelSelect')) || { value: 'keep' }).value,
-              mode: workspace === 'free' ? 'free' : workspace === 'logo' ? 'logo' : workspace === 'apparel' ? 'apparel' : workspace === 'recolor' ? 'recolor' : workspace === 'bg' ? 'bg' : workspace === 'pose' ? 'pose' : workspace === 'material' ? 'material' : 'swap',
+              mode: workspace === 'free' ? 'free' : workspace === 'logo' ? 'logo' : workspace === 'apparel' ? 'apparel' : workspace === 'recolor' ? 'recolor' : workspace === 'bg' ? 'bg' : workspace === 'pose' ? 'pose' : workspace === 'material' ? 'material' : workspace === 'modelfix' ? 'modelfix' : 'swap',
               mPart: (mPartSelect || { value: 'bow' }).value, mPartLabel: (mPartOther || { value: '' }).value.trim(),
               material: (materialSelect || { value: 'leather' }).value, materialLabel: (materialOther || { value: '' }).value.trim(),
               mColor: (mColorSelect || { value: 'keep' }).value, mColorLabel: (mColorOther || { value: '' }).value.trim(),
@@ -673,6 +678,10 @@
               fit: fitSelect.value, fitLabel: fitOther.value.trim(),
               otherColor: (otherColorSelect || { value: 'keep' }).value, otherColorLabel: (otherColorInput || { value: '' }).value.trim(),
               topStyle: (topStyleSelect || { value: 'product' }).value, topStyleLabel: (topStyleOther || { value: '' }).value.trim(), swapNotes: (swapNotesInput || { value: '' }).value.trim(),
+              fxShoes: fxOpt('SHOES'), fxShoesText: fxTxt('SHOES'), fxBottoms: fxOpt('BOTTOMS'), fxBottomsText: fxTxt('BOTTOMS'), fxTop: fxOpt('TOP'), fxTopText: fxTxt('TOP'),
+              fxBelt: fxOpt('BELT'), fxBeltText: fxTxt('BELT'), fxNecklace: fxOpt('NECKLACE'), fxNecklaceText: fxTxt('NECKLACE'), fxBag: fxOpt('BAG'), fxBagText: fxTxt('BAG'),
+              fxCrop: (document.getElementById('fxCropSelect') || { value: 'none' }).value,
+              prompt: workspace === 'modelfix' ? ((document.getElementById('fxNotesInput') || { value: '' }).value.trim() + ' ' + (promptInput.value || '').trim()).trim() : undefined,
               bottomsStyle: bottomsStyleSelect.value, bottomsLabel: bottomsOther.value.trim(),
               logosOpt: logosOptSelect.value,
               prompt: workspace === 'free' ? freePromptInput.value.trim() : (workspace === 'recolor' ? ((recolorNotes.value || '') + ' ' + (promptInput.value || '')).trim() : (promptInput.value || '').trim()),
@@ -861,6 +870,162 @@
       if (finished.length) { downloadAllBtn.hidden = false; downloadAllBtn.onclick = () => downloadAll(finished); }
       setStatus('Batch done — ' + finished.length + ' of ' + tasks.length + ' succeeded. Download the zip now.', finished.length ? 'is-ok' : 'is-error');
     });
+  })();
+
+  // --- Group split: manual group photos -> one angle per colour ---
+  (function groupSplit() {
+    const gInput = document.getElementById('groupFileInput');
+    const gReview = document.getElementById('groupReview');
+    const gBtn = document.getElementById('groupGenerateBtn');
+    if (!gInput || !gBtn) return;
+    let gItems = [];
+    function renderGroup() {
+      gReview.innerHTML = '';
+      gItems.forEach((it, idx) => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex; gap:8px; align-items:center; margin-bottom:8px';
+        const img = document.createElement('img');
+        img.src = it.url; img.style.cssText = 'width:64px; height:64px; object-fit:cover; border-radius:6px; flex:none';
+        const styleIn = document.createElement('input'); styleIn.type = 'text'; styleIn.value = it.style; styleIn.placeholder = 'Style name, e.g. Lina'; styleIn.style.cssText = 'width:34%';
+        styleIn.addEventListener('input', () => { it.style = styleIn.value; });
+        const colorsIn = document.createElement('input'); colorsIn.type = 'text'; colorsIn.value = it.colors; colorsIn.placeholder = 'Colours, comma separated, e.g. Black, Tan'; colorsIn.style.cssText = 'flex:1';
+        colorsIn.addEventListener('input', () => { it.colors = colorsIn.value; });
+        const rm = document.createElement('button'); rm.type = 'button'; rm.textContent = '×';
+        rm.addEventListener('click', () => { gItems.splice(idx, 1); renderGroup(); });
+        row.appendChild(img); row.appendChild(styleIn); row.appendChild(colorsIn); row.appendChild(rm);
+        gReview.appendChild(row);
+      });
+    }
+    function addGroupFiles(list) {
+      for (const f of Array.from(list || [])) {
+        if (!f.type || !f.type.startsWith('image/')) continue;
+        if (gItems.length >= 10) break;
+        gItems.push({ file: f, url: URL.createObjectURL(f), style: '', colors: '' });
+      }
+      renderGroup();
+    }
+    gInput.addEventListener('change', (e) => { addGroupFiles(e.target.files); gInput.value = ''; });
+    const gDrop = document.querySelector('label[for="groupFileInput"]');
+    if (gDrop) {
+      ['dragenter', 'dragover'].forEach((ev) => gDrop.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); gDrop.style.opacity = '0.7'; }));
+      ['dragleave', 'drop'].forEach((ev) => gDrop.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); gDrop.style.opacity = ''; }));
+      gDrop.addEventListener('drop', (e) => { addGroupFiles(e.dataTransfer && e.dataTransfer.files); });
+    }
+    gBtn.addEventListener('click', async () => {
+      if (!gItems.length) return setStatus('Add group photos first.', 'is-error');
+      const key = (typeof googleKeyInput !== 'undefined' && googleKeyInput) ? googleKeyInput.value.trim() : (localStorage.getItem('googleApiKey') || '');
+      if (!key) return setStatus('Enter your Google API key in the Google API key section first.', 'is-error');
+      const bad = gItems.find((it) => !String(it.colors).split(',').map((x) => x.trim()).filter(Boolean).length);
+      if (bad) return setStatus('Every photo needs at least one colour (comma separated).', 'is-error');
+      gBtn.disabled = true;
+      setStatus('Uploading group photos…');
+      let referenceId;
+      try {
+        const fd = new FormData();
+        gItems.forEach((it) => fd.append('bases', it.file));
+        const r = await fetch('/api/reference', { method: 'POST', body: fd });
+        const d = await r.json();
+        if (!r.ok || d.error) throw new Error(d.error || 'upload failed');
+        referenceId = d.referenceId;
+      } catch (err) { gBtn.disabled = false; return setStatus('Upload failed: ' + err.message, 'is-error'); }
+      const tasks = [];
+      gItems.forEach((it, i) => {
+        const style = (it.style || '').trim() || ('Style ' + (i + 1));
+        String(it.colors).split(',').map((x) => x.trim()).filter(Boolean).forEach((c) => tasks.push({ baseIndex: i, color: c, outName: style + ' - ' + c }));
+      });
+      const resolution = document.getElementById('groupResolution').value;
+      const aspect = document.getElementById('groupAspect').value;
+      renderPlaceholders(tasks.map((t) => t.outName), 1);
+      setStatus('Generating ' + tasks.length + ' angle image(s)…');
+      const finished = []; let done = 0;
+      await Promise.all(tasks.map(async (t, idx) => {
+        await new Promise((r) => setTimeout(r, idx * 250));
+        let result;
+        try {
+          const resp = await fetch('/api/edit', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ async: '1', referenceId, baseIndex: t.baseIndex, mode: 'sheetangle', sheetColor: t.color, outName: t.outName, variant: 1, resolution, aspectRatio: aspect, provider: 'google', googleApiKey: key }),
+          });
+          result = await resp.json();
+          if (result && result.jobId) result = await pollJob(result.jobId);
+        } catch (err) { result = { status: 'FAILED', error: err.message }; }
+        renderCellResult(idx, 1, t.outName, result, aspect, resolution);
+        if (result && result.status === 'COMPLETED') finished.push({ label: t.outName, url: result.imageUrl });
+        done++; sheetSub.textContent = done + ' of ' + tasks.length + ' frames developed.';
+      }));
+      gBtn.disabled = false;
+      if (finished.length) { downloadAllBtn.hidden = false; downloadAllBtn.onclick = () => downloadAll(finished); }
+      setStatus('Batch done — ' + finished.length + ' of ' + tasks.length + ' succeeded. Download the zip now.', finished.length ? 'is-ok' : 'is-error');
+    });
+  })();
+
+  // --- Model fix: per-item change rows + labelled reference board ---
+  window.fxOpt = () => 'keep'; window.fxTxt = () => '';
+  (function modelFix() {
+    const wrap = document.getElementById('fxItems');
+    if (!wrap) return;
+    const ITEMS = ['SHOES', 'BOTTOMS', 'TOP', 'BELT', 'NECKLACE', 'BAG'];
+    const NICE = { SHOES: 'Shoes', BOTTOMS: 'Bottoms (pants/shorts)', TOP: 'Top', BELT: 'Belt', NECKLACE: 'Necklace', BAG: 'Bag' };
+    const st = {};
+    ITEMS.forEach((tag) => {
+      st[tag] = { opt: 'keep', text: '', file: null };
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex; gap:8px; align-items:center; margin-bottom:8px; flex-wrap:wrap';
+      const lab = document.createElement('span'); lab.textContent = NICE[tag]; lab.style.cssText = 'width:150px; flex:none; font-size:13px';
+      const sel = document.createElement('select');
+      sel.innerHTML = '<option value="keep" selected>Keep</option><option value="ref">Replace — attach image</option><option value="text">Replace — describe</option><option value="remove">Remove</option>';
+      const txt = document.createElement('input'); txt.type = 'text'; txt.placeholder = 'Describe it, e.g. Menina high-waist baggy jeans'; txt.style.cssText = 'flex:1; min-width:170px; display:none';
+      txt.addEventListener('input', () => { st[tag].text = txt.value; });
+      const fileBtn = document.createElement('button'); fileBtn.type = 'button'; fileBtn.textContent = 'Add photo'; fileBtn.style.display = 'none';
+      const fileIn = document.createElement('input'); fileIn.type = 'file'; fileIn.accept = 'image/png,image/jpeg,image/webp'; fileIn.hidden = true;
+      const thumb = document.createElement('img'); thumb.style.cssText = 'width:40px; height:40px; object-fit:cover; border-radius:5px; display:none';
+      fileBtn.addEventListener('click', () => fileIn.click());
+      fileIn.addEventListener('change', (e) => {
+        const f = e.target.files && e.target.files[0];
+        if (f && f.type.startsWith('image/')) { st[tag].file = f; thumb.src = URL.createObjectURL(f); thumb.style.display = ''; rebuildBoard(); }
+        fileIn.value = '';
+      });
+      sel.addEventListener('change', () => {
+        st[tag].opt = sel.value;
+        txt.style.display = (sel.value === 'text' || sel.value === 'ref') ? '' : 'none';
+        txt.placeholder = sel.value === 'ref' ? 'Optional detail, e.g. worn without socks' : 'Describe it, e.g. Menina high-waist baggy jeans';
+        fileBtn.style.display = sel.value === 'ref' ? '' : 'none';
+        thumb.style.display = (sel.value === 'ref' && st[tag].file) ? '' : 'none';
+        rebuildBoard();
+      });
+      row.appendChild(lab); row.appendChild(sel); row.appendChild(fileBtn); row.appendChild(thumb); row.appendChild(txt); row.appendChild(fileIn);
+      wrap.appendChild(row);
+    });
+    state.fxBoardBlob = null;
+    async function rebuildBoard() {
+      const refs = ITEMS.filter((t) => st[t].opt === 'ref' && st[t].file);
+      if (!refs.length) { state.fxBoardBlob = null; return; }
+      try {
+        const W = 900, LABEL_H = 46;
+        const imgs = [];
+        for (const t of refs) {
+          const url = URL.createObjectURL(st[t].file);
+          const im = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+          imgs.push({ tag: t, im, h: Math.round(im.height * W / im.width) });
+        }
+        const totalH = imgs.reduce((acc, x) => acc + LABEL_H + x.h + 14, 8);
+        const cv = document.createElement('canvas'); cv.width = W; cv.height = totalH;
+        const ctx = cv.getContext('2d');
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, totalH);
+        let y = 8;
+        for (const x of imgs) {
+          ctx.fillStyle = '#000000'; ctx.font = 'bold 30px Arial';
+          ctx.fillText(x.tag, 12, y + 32);
+          y += LABEL_H;
+          ctx.drawImage(x.im, 0, y, W, x.h);
+          ctx.strokeStyle = '#000000'; ctx.lineWidth = 2; ctx.strokeRect(0, y, W, x.h);
+          y += x.h + 14;
+        }
+        state.fxBoardBlob = await new Promise((res) => cv.toBlob(res, 'image/jpeg', 0.92));
+      } catch (e) { state.fxBoardBlob = null; }
+    }
+    window.fxOpt = (tag) => (st[tag] ? st[tag].opt : 'keep');
+    window.fxTxt = (tag) => (st[tag] ? String(st[tag].text || '').trim() : '');
   })();
 
   applyWorkspace('angles');

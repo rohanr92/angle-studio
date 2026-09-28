@@ -37,6 +37,8 @@
       <button type="button" class="tab" data-ws="recolor">Recolor</button>
       <button type="button" class="tab" data-ws="material">Material</button>
       <button type="button" class="tab" data-ws="sheet">Batch sheet</button>
+      <button type="button" class="tab" data-ws="group">Group split</button>
+      <button type="button" class="tab" data-ws="modelfix">Model fix</button>
       <button type="button" class="tab" data-ws="bg">Background</button>
       <button type="button" class="tab" data-ws="pose">Angle match</button>
     </div>
@@ -275,6 +277,48 @@
           <span class="dropzone__text">Drop product images</span>
           <span class="dropzone__meta">JPG / PNG · up to 30</span>
         </label>
+      </section>
+
+      <section class="panel" id="modelfixPanel" hidden>
+        <header class="panel__head"><span class="panel__num">Mf</span><h2>Model fix</h2></header>
+        <p class="panel__hint">Upload the lifestyle images of one style/colour (all its angles). Pick what to change — everything else, model included, stays identical. The same changes apply to every image so the set stays consistent.</p>
+        <p class="panel__hint" style="margin-bottom:6px">1 · Model images (up to 30)</p>
+        <label id="basesDropZone9" class="dropzone" for="basesFileInput" style="margin-bottom:10px">
+          <span class="dropzone__icon">＋</span>
+          <span class="dropzone__text">Drop model images</span>
+          <span class="dropzone__meta">JPG / PNG · the 5–6 angles of this style</span>
+        </label>
+        <p class="panel__hint" style="margin-bottom:6px">2 · What to change</p>
+        <div id="fxItems"></div>
+        <div class="spec-row" style="margin-top:10px; margin-bottom:8px">
+          <label class="spec-field"><span>Crop</span>
+            <select id="fxCropSelect">
+              <option value="none" selected>No crop</option>
+              <option value="chin">Cut at chin (no face)</option>
+            </select>
+          </label>
+        </div>
+        <input id="fxNotesInput" type="text" placeholder="Notes (optional), e.g. remove all tattoos from her hands" style="margin-bottom:8px">
+      </section>
+
+      <section class="panel" id="groupPanel" hidden>
+        <header class="panel__head"><span class="panel__num">Gs</span><h2>Group photo split</h2></header>
+        <p class="panel__hint">Upload group photos (one style shown in several colours). For each photo type the style name and its colours — one professional side-profile angle is generated per colour, pure white background, no sole logo, named Style-Colour.</p>
+        <label class="dropzone" for="groupFileInput" style="padding:14px; margin-bottom:10px">
+          <span class="dropzone__text">Drop group photos</span>
+          <span class="dropzone__meta">JPG / PNG · up to 10</span>
+        </label>
+        <input id="groupFileInput" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden>
+        <div id="groupReview" style="margin-bottom:10px"></div>
+        <div class="spec-row" style="margin-bottom:8px">
+          <label class="spec-field"><span>Resolution</span>
+            <select id="groupResolution"><option value="2k" selected>2K</option><option value="4k">4K</option></select>
+          </label>
+          <label class="spec-field"><span>Aspect</span>
+            <select id="groupAspect"><option value="1:1" selected>1:1</option><option value="4:5">4:5</option><option value="auto">Auto</option></select>
+          </label>
+        </div>
+        <button id="groupGenerateBtn" class="btn" type="button" style="width:100%">Generate batch</button>
       </section>
 
       <section class="panel" id="sheetPanel" hidden>
