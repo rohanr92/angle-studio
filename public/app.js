@@ -683,6 +683,7 @@
               fxCrop: (document.getElementById('fxCropSelect') || { value: 'none' }).value,
               fxMain: (document.getElementById('fxMainSelect') || { value: 'none' }).value,
               fxNeck: (document.getElementById('fxNeckSelect') || { value: 'keep' }).value, fxHem: (document.getElementById('fxHemSelect') || { value: 'keep' }).value, fxLogos: (document.getElementById('fxLogosSelect') || { value: 'keep' }).value,
+              fxMainRef: (window.fxMainCount && window.fxMainCount() > 0) ? '1' : '0',
               prompt: workspace === 'modelfix' ? ((document.getElementById('fxNotesInput') || { value: '' }).value.trim() + ' ' + (promptInput.value || '').trim()).trim() : undefined,
               bottomsStyle: bottomsStyleSelect.value, bottomsLabel: bottomsOther.value.trim(),
               logosOpt: logosOptSelect.value,
@@ -999,9 +1000,10 @@
       wrap.appendChild(row);
     });
     state.fxBoardBlob = null;
+    const mainFiles = [];
     async function rebuildBoard() {
       const refs = ITEMS.filter((t) => st[t].opt === 'ref' && st[t].file);
-      if (!refs.length) { state.fxBoardBlob = null; return; }
+      if (!refs.length && !mainFiles.length) { state.fxBoardBlob = null; return; }
       try {
         const W = 900, LABEL_H = 46;
         const imgs = [];
@@ -1009,6 +1011,11 @@
           const url = URL.createObjectURL(st[t].file);
           const im = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
           imgs.push({ tag: t, im, h: Math.round(im.height * W / im.width) });
+        }
+        for (let mi = 0; mi < mainFiles.length; mi++) {
+          const url = URL.createObjectURL(mainFiles[mi]);
+          const im = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+          imgs.push({ tag: 'MAIN PRODUCT' + (mainFiles.length > 1 ? ' (' + (mi + 1) + ')' : ''), im, h: Math.round(im.height * W / im.width) });
         }
         const totalH = imgs.reduce((acc, x) => acc + LABEL_H + x.h + 14, 8);
         const cv = document.createElement('canvas'); cv.width = W; cv.height = totalH;
@@ -1026,6 +1033,27 @@
         state.fxBoardBlob = await new Promise((res) => cv.toBlob(res, 'image/jpeg', 0.92));
       } catch (e) { state.fxBoardBlob = null; }
     }
+    const mInput = document.getElementById('fxMainInput');
+    const mBtn = document.getElementById('fxMainBtn');
+    const mPrev = document.getElementById('fxMainPreview');
+    function renderMain() {
+      mPrev.innerHTML = '';
+      mainFiles.forEach((f, i) => {
+        const box = document.createElement('div'); box.style.cssText = 'position:relative';
+        const im = document.createElement('img'); im.src = URL.createObjectURL(f); im.style.cssText = 'width:52px; height:52px; object-fit:cover; border-radius:5px';
+        const rm = document.createElement('button'); rm.type = 'button'; rm.textContent = '×'; rm.style.cssText = 'position:absolute; top:-6px; right:-6px';
+        rm.addEventListener('click', () => { mainFiles.splice(i, 1); renderMain(); rebuildBoard(); });
+        box.appendChild(im); box.appendChild(rm); mPrev.appendChild(box);
+      });
+    }
+    if (mBtn && mInput) {
+      mBtn.addEventListener('click', () => mInput.click());
+      mInput.addEventListener('change', (e) => {
+        for (const f of Array.from(e.target.files || [])) { if (f.type.startsWith('image/') && mainFiles.length < 4) mainFiles.push(f); }
+        mInput.value = ''; renderMain(); rebuildBoard();
+      });
+    }
+    window.fxMainCount = () => mainFiles.length;
     window.fxOpt = (tag) => (st[tag] ? st[tag].opt : 'keep');
     window.fxTxt = (tag) => (st[tag] ? String(st[tag].text || '').trim() : '');
   })();

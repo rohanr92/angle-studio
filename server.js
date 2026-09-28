@@ -1131,7 +1131,7 @@ app.post('/api/edit', async (req, res) => {
       sheetColor = '',
       fxShoes = 'keep', fxShoesText = '', fxBottoms = 'keep', fxBottomsText = '', fxTop = 'keep', fxTopText = '',
       fxBelt = 'keep', fxBeltText = '', fxNecklace = 'keep', fxNecklaceText = '', fxBag = 'keep', fxBagText = '',
-      fxCrop = 'none', fxMain = 'none',
+      fxCrop = 'none', fxMain = 'none', fxNeck = 'keep', fxHem = 'keep', fxLogos = 'keep', fxMainRef = '0',
       fit = 'product', fitLabel = '', bottomsStyle = 'product', bottomsLabel = '', logosOpt = 'keep',
       bgChoice = 'white', bgCustom = '', shadowSrc = 'auto',
       copyAngle = 'on', copyShape = 'on', copyShadow = 'on', copyBg = 'on', colorLock = 'on',
@@ -1174,7 +1174,7 @@ app.post('/api/edit', async (req, res) => {
       ];
       const MAIN_TAG = ({ top: 'TOP', bottoms: 'BOTTOMS', shoes: 'SHOES', bag: 'BAG' })[String(fxMain)] || null;
       if (MAIN_TAG) for (const it of ITEMS) if (it[0] === MAIN_TAG) { it[2] = 'keep'; it[3] = ''; }
-      const hasRefBoard = ITEMS.some((it) => String(it[2]) === 'ref') && entry.bg;
+      const hasRefBoard = (ITEMS.some((it) => String(it[2]) === 'ref') || String(fxMainRef) === '1') && entry.bg;
       const itemLines = [];
       for (const [tag, phrase, opt, txt] of ITEMS) {
         const o = String(opt);
@@ -1189,6 +1189,10 @@ app.post('/api/edit', async (req, res) => {
         hasRefBoard ? 'A reference board image is included: it contains labelled sections, each showing one product to use. Copy products ONLY from their named sections; copy nothing else from the board (not its background, not its layout).' : '',
         itemLines.join(' '),
         String(fxCrop) === 'chin' ? 'FRAMING: the final image is cropped so the face is NOT visible — the frame starts just below the chin and shows the body down from there. Do not blur or paint over the face; the crop simply excludes it.' : '',
+        String(fxNeck) === 'logo' ? 'EXCEPTION to the keep rules above — NECK LABEL: erase the logo / brand text printed on the neck label, leaving a clean plain label in its own colour; the label itself stays.' : String(fxNeck) === 'remove' ? 'EXCEPTION to the keep rules above — NECK LABEL: remove the neck label completely, leaving clean fabric with no mark.' : '',
+        String(fxHem) === 'logo' ? 'EXCEPTION to the keep rules above — HEM / SIDE LABEL: erase the logo / brand text on the hem or side tag, leaving a clean plain tag; the tag itself stays.' : String(fxHem) === 'remove' ? 'EXCEPTION to the keep rules above — HEM / SIDE LABEL: remove the hem or side tag completely, leaving a clean seam with no mark.' : '',
+        String(fxLogos) === 'remove' ? 'EXCEPTION to the keep rules above — LOGOS: remove every visible logo, brand name, print text or embroidery from all clothing, leaving the plain fabric in its exact colour and texture. Only the logos go; the garments stay identical otherwise.' : '',
+        (String(fxMainRef) === '1' && entry.bg) ? 'COLOUR TRUTH FOR THE MAIN PRODUCT: the reference board section labelled "MAIN PRODUCT" shows my real product (' + (MAIN_TAG ? ({ TOP: 'the top', BOTTOMS: 'the bottoms', SHOES: 'the shoes', BAG: 'the bag' })[MAIN_TAG] : 'the item being sold') + '). In the final image that product must match those photos EXACTLY in colour — same hue, same darkness, same saturation, same fabric look. If it looks even slightly different in image 1, correct it to match the MAIN PRODUCT photos. Do not change its design, fit or position.' : '',
         'NEVER add or invent any garment, accessory, label or logo that is not in image 1 or explicitly requested above. Colours stay true to life.',
         'Premium e-commerce quality, sharp focus. Output one photorealistic image only.',
       ].filter(Boolean).join(' ');
