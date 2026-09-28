@@ -682,6 +682,7 @@
               fxBelt: fxOpt('BELT'), fxBeltText: fxTxt('BELT'), fxNecklace: fxOpt('NECKLACE'), fxNecklaceText: fxTxt('NECKLACE'), fxBag: fxOpt('BAG'), fxBagText: fxTxt('BAG'),
               fxCrop: (document.getElementById('fxCropSelect') || { value: 'none' }).value,
               fxMain: (document.getElementById('fxMainSelect') || { value: 'none' }).value,
+              fxNeck: (document.getElementById('fxNeckSelect') || { value: 'keep' }).value, fxHem: (document.getElementById('fxHemSelect') || { value: 'keep' }).value, fxLogos: (document.getElementById('fxLogosSelect') || { value: 'keep' }).value,
               prompt: workspace === 'modelfix' ? ((document.getElementById('fxNotesInput') || { value: '' }).value.trim() + ' ' + (promptInput.value || '').trim()).trim() : undefined,
               bottomsStyle: bottomsStyleSelect.value, bottomsLabel: bottomsOther.value.trim(),
               logosOpt: logosOptSelect.value,
