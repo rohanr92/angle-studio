@@ -1131,7 +1131,7 @@ app.post('/api/edit', async (req, res) => {
       sheetColor = '',
       fxShoes = 'keep', fxShoesText = '', fxBottoms = 'keep', fxBottomsText = '', fxTop = 'keep', fxTopText = '',
       fxBelt = 'keep', fxBeltText = '', fxNecklace = 'keep', fxNecklaceText = '', fxBag = 'keep', fxBagText = '',
-      fxCrop = 'none',
+      fxCrop = 'none', fxMain = 'none',
       fit = 'product', fitLabel = '', bottomsStyle = 'product', bottomsLabel = '', logosOpt = 'keep',
       bgChoice = 'white', bgCustom = '', shadowSrc = 'auto',
       copyAngle = 'on', copyShape = 'on', copyShadow = 'on', copyBg = 'on', colorLock = 'on',
@@ -1172,6 +1172,8 @@ app.post('/api/edit', async (req, res) => {
         ['NECKLACE', 'the necklace / jewellery', fxNecklace, fxNecklaceText],
         ['BAG', 'the bag', fxBag, fxBagText],
       ];
+      const MAIN_TAG = ({ top: 'TOP', bottoms: 'BOTTOMS', shoes: 'SHOES', bag: 'BAG' })[String(fxMain)] || null;
+      if (MAIN_TAG) for (const it of ITEMS) if (it[0] === MAIN_TAG) { it[2] = 'keep'; it[3] = ''; }
       const hasRefBoard = ITEMS.some((it) => String(it[2]) === 'ref') && entry.bg;
       const itemLines = [];
       for (const [tag, phrase, opt, txt] of ITEMS) {
@@ -1183,6 +1185,7 @@ app.post('/api/edit', async (req, res) => {
       instruction = [
         'Edit image 1, a lifestyle model photo of my product. This is a professional retouching job, NOT a re-creation.',
         'KEEP EVERYTHING ELSE IDENTICAL: the same model, same face and hair (unless a change below says otherwise), same pose, same body position, same camera angle and framing, same lighting, same background, and every garment and accessory not mentioned below stays exactly as photographed, in its exact colour.',
+        MAIN_TAG ? 'THE MAIN PRODUCT in this photo is ' + ({ TOP: 'the top', BOTTOMS: 'the bottoms (pants / shorts)', SHOES: 'the shoes', BAG: 'the bag' })[MAIN_TAG] + ' — it is the product being SOLD. It is UNTOUCHABLE: keep it pixel-faithful — the exact same design, the exact same colour (same hue, same darkness, same saturation, not lighter, not darker, no tint shift), same fabric, texture, print, fit, length and every detail, exactly as photographed. Changing other items must not affect it in any way.' : '',
         hasRefBoard ? 'A reference board image is included: it contains labelled sections, each showing one product to use. Copy products ONLY from their named sections; copy nothing else from the board (not its background, not its layout).' : '',
         itemLines.join(' '),
         String(fxCrop) === 'chin' ? 'FRAMING: the final image is cropped so the face is NOT visible — the frame starts just below the chin and shows the body down from there. Do not blur or paint over the face; the crop simply excludes it.' : '',
