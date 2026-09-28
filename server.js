@@ -1129,6 +1129,9 @@ app.post('/api/edit', async (req, res) => {
       otherColor = 'keep', otherColorLabel = '',
       topStyle = 'product', topStyleLabel = '', swapNotes = '',
       sheetColor = '',
+      fxShoes = 'keep', fxShoesText = '', fxBottoms = 'keep', fxBottomsText = '', fxTop = 'keep', fxTopText = '',
+      fxBelt = 'keep', fxBeltText = '', fxNecklace = 'keep', fxNecklaceText = '', fxBag = 'keep', fxBagText = '',
+      fxCrop = 'none',
       fit = 'product', fitLabel = '', bottomsStyle = 'product', bottomsLabel = '', logosOpt = 'keep',
       bgChoice = 'white', bgCustom = '', shadowSrc = 'auto',
       copyAngle = 'on', copyShape = 'on', copyShadow = 'on', copyBg = 'on', colorLock = 'on',
@@ -1142,7 +1145,7 @@ app.post('/api/edit', async (req, res) => {
     const base = isApparel ? (entry.product && entry.product[Number(baseIndex)]) : (entry.bases && entry.bases[Number(baseIndex)]);
     if (!base) return res.status(400).json({ error: 'No ' + (isApparel ? 'product' : 'sample') + ' photo at index ' + baseIndex });
     const styleRef = isApparel ? (entry.bases && entry.bases[0]) : null;
-    if (mode !== 'logo' && mode !== 'recolor' && mode !== 'bg' && mode !== 'pose' && mode !== 'material' && mode !== 'sheetangle' && !entry.product.length) return res.status(400).json({ error: 'Upload product photos too.' });
+    if (mode !== 'logo' && mode !== 'recolor' && mode !== 'bg' && mode !== 'pose' && mode !== 'material' && mode !== 'sheetangle' && mode !== 'modelfix' && !entry.product.length) return res.status(400).json({ error: 'Upload product photos too.' });
 
     // async mode: acknowledge now, deliver via /api/job/:id
     let jobId = null;
@@ -1160,7 +1163,34 @@ app.post('/api/edit', async (req, res) => {
     const cat = catNames[category] || catNames.shoes;
 
     let instruction;
-    if (mode === 'sheetangle') {
+    if (mode === 'modelfix') {
+      const ITEMS = [
+        ['SHOES', 'the shoes the model wears', fxShoes, fxShoesText],
+        ['BOTTOMS', 'the bottoms the model wears (pants / jeans / shorts / skirt)', fxBottoms, fxBottomsText],
+        ['TOP', 'the top the model wears', fxTop, fxTopText],
+        ['BELT', 'the belt', fxBelt, fxBeltText],
+        ['NECKLACE', 'the necklace / jewellery', fxNecklace, fxNecklaceText],
+        ['BAG', 'the bag', fxBag, fxBagText],
+      ];
+      const hasRefBoard = ITEMS.some((it) => String(it[2]) === 'ref') && entry.bg;
+      const itemLines = [];
+      for (const [tag, phrase, opt, txt] of ITEMS) {
+        const o = String(opt);
+        if (o === 'remove') itemLines.push('REMOVE ' + phrase + ' completely — the model is simply not wearing it; reconstruct what it covered naturally (skin, garment, background), leaving no trace or mark.');
+        else if (o === 'ref') itemLines.push('REPLACE ' + phrase + ' with the product shown in the reference board section labelled "' + tag + '": reproduce that product EXACTLY — same design, same colour, same material, texture, hardware and details — fitted naturally to the model in the same pose.' + (String(txt).trim() ? ' Details: ' + String(txt).trim() + '.' : ''));
+        else if (o === 'text' && String(txt).trim()) itemLines.push('REPLACE ' + phrase + ' with: ' + String(txt).trim() + '. Render it realistically and fitted naturally to the model in the same pose.');
+      }
+      instruction = [
+        'Edit image 1, a lifestyle model photo of my product. This is a professional retouching job, NOT a re-creation.',
+        'KEEP EVERYTHING ELSE IDENTICAL: the same model, same face and hair (unless a change below says otherwise), same pose, same body position, same camera angle and framing, same lighting, same background, and every garment and accessory not mentioned below stays exactly as photographed, in its exact colour.',
+        hasRefBoard ? 'A reference board image is included: it contains labelled sections, each showing one product to use. Copy products ONLY from their named sections; copy nothing else from the board (not its background, not its layout).' : '',
+        itemLines.join(' '),
+        String(fxCrop) === 'chin' ? 'FRAMING: the final image is cropped so the face is NOT visible — the frame starts just below the chin and shows the body down from there. Do not blur or paint over the face; the crop simply excludes it.' : '',
+        'NEVER add or invent any garment, accessory, label or logo that is not in image 1 or explicitly requested above. Colours stay true to life.',
+        'Premium e-commerce quality, sharp focus. Output one photorealistic image only.',
+      ].filter(Boolean).join(' ');
+      if (String(prompt).trim()) instruction += ' Extra instructions: ' + String(prompt).trim();
+    } else if (mode === 'sheetangle') {
       const colr = String(sheetColor || '').trim() || 'the shown';
       instruction = [
         'The attached photo shows my footwear product — possibly several colourways together, at a casual angle, on a non-studio background (it may be a supplier or showroom photo).',
