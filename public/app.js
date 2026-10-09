@@ -653,11 +653,12 @@
         markActive(idx, v);
         let result;
         try {
+          const soloRef = (workspace === 'free' && window.__freeSolo && window.__freeSolo()) ? await window.__getSoloRef(idx) : null;
           const resp = await fetch('/api/edit', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               async: '1',
-              referenceId, baseIndex: idx, variant: v, resolution, provider, model, googleApiKey, aspectRatio: aspectSelect.value,
+              referenceId: (soloRef || referenceId), baseIndex: (soloRef ? 0 : idx), variant: v, resolution, provider, model, googleApiKey, aspectRatio: aspectSelect.value,
               brandText: (document.getElementById('brandTextInput') || { value: '' }).value, labelOverlay: (document.getElementById('labelOverlaySelect') || { value: 'on' }).value, logoMode: (document.getElementById('logoModeSelect') || { value: 'replace' }).value,
               neckLabel: ((workspace === 'lifestyle' ? document.getElementById('swapNeckSelect') : workspace === 'pose' ? document.getElementById('poseNeckSelect') : document.getElementById('neckLabelSelect')) || { value: 'keep' }).value, hemLabel: ((workspace === 'lifestyle' ? document.getElementById('swapHemSelect') : workspace === 'pose' ? document.getElementById('poseHemSelect') : document.getElementById('hemLabelSelect')) || { value: 'keep' }).value,
               mode: workspace === 'free' ? 'free' : workspace === 'logo' ? 'logo' : workspace === 'apparel' ? 'apparel' : workspace === 'recolor' ? 'recolor' : workspace === 'bg' ? 'bg' : workspace === 'pose' ? 'pose' : workspace === 'material' ? 'material' : workspace === 'modelfix' ? 'modelfix' : 'swap',
@@ -1056,6 +1057,33 @@
     window.fxMainCount = () => mainFiles.length;
     window.fxOpt = (tag) => (st[tag] ? st[tag].opt : 'keep');
     window.fxTxt = (tag) => (st[tag] ? String(st[tag].text || '').trim() : '');
+  })();
+
+  // --- Prompt lab: "Each photo separately" — every frame sees only its own photo ---
+  (function freeSolo() {
+    const anchorEl = (typeof freePromptInput !== 'undefined' && freePromptInput) ? freePromptInput : null;
+    const lab = document.createElement('label');
+    lab.style.cssText = 'display:flex; gap:8px; align-items:center; margin:8px 0; font-size:14px; cursor:pointer';
+    lab.innerHTML = '<input type="checkbox" id="freeSoloCheck" checked> Each photo separately (one image per photo, never combined)';
+    if (anchorEl && anchorEl.parentNode) anchorEl.parentNode.insertBefore(lab, anchorEl.nextSibling);
+    window.__freeSolo = () => { const c = document.getElementById('freeSoloCheck'); return !!(c && c.checked); };
+    const cache = new WeakMap();
+    window.__getSoloRef = (idx) => {
+      const f = state.baseFiles && state.baseFiles[idx];
+      if (!f) return Promise.resolve(null);
+      if (!cache.has(f)) {
+        cache.set(f, (async () => {
+          const fd = new FormData();
+          fd.append('bases', f);
+          (state.refFiles || []).forEach((p) => fd.append('product', p));
+          const r = await fetch('/api/reference', { method: 'POST', body: fd });
+          const d = await r.json();
+          if (!r.ok || !d.referenceId) { cache.delete(f); throw new Error(d.error || 'upload failed'); }
+          return d.referenceId;
+        })());
+      }
+      return cache.get(f);
+    };
   })();
 
   applyWorkspace('angles');
