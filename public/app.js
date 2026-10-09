@@ -1086,5 +1086,76 @@
     };
   })();
 
+  // --- Prompt lab: Angle set (back / side / close-up / fabric) per photo ---
+  (function angleSet() {
+    const anchorEl = document.getElementById('freeSoloCheck');
+    if (!anchorEl) return;
+    const ANGLES = {
+      back: { name: 'Back', text: 'Show the SAME model from directly BEHIND (back view), standing naturally, so the back of the t-shirt is fully visible.' },
+      side: { name: 'Side', text: 'Show the SAME model in a SIDE PROFILE view (turned 90 degrees), so the side of the t-shirt, sleeve and fit are clearly visible.' },
+      close: { name: 'Close-up', text: 'A CLOSE-UP of the SAME model from chest to waist, front view, the t-shirt filling most of the frame so neckline, sleeves and fit are clearly visible.' },
+      fabric: { name: 'Fabric', text: 'An extreme MACRO CLOSE-UP of the t-shirt FABRIC only, showing the knit texture and weave in sharp detail, filling the whole frame.' },
+    };
+    const box = document.createElement('div');
+    box.id = 'angleSetBox';
+    box.style.cssText = 'border:1px dashed rgba(0,0,0,0.2); border-radius:10px; padding:12px; margin:10px 0';
+    box.innerHTML = '<div style="font-weight:600; margin-bottom:6px">Angle set (optional)</div>'
+      + '<div style="font-size:13px; opacity:.75; margin-bottom:8px">For every uploaded photo, make one image per ticked angle. Same model, exact same t-shirt colour.</div>'
+      + Object.keys(ANGLES).map((k) => '<label style="display:flex; gap:8px; align-items:center; margin:4px 0; cursor:pointer"><input type="checkbox" class="angSetCk" value="' + k + '" checked> ' + ANGLES[k].name + '</label>').join('')
+      + '<div style="display:flex; gap:8px; margin-top:8px">'
+      + '<select id="angSetRes"><option value="2k">2K</option><option value="4k" selected>4K</option></select>'
+      + '<select id="angSetAspect"><option value="2:3" selected>2:3</option><option value="4:5">4:5</option><option value="1:1">1:1</option></select>'
+      + '</div>'
+      + '<button type="button" id="angSetBtn" class="btn" style="width:100%; margin-top:10px">Develop angle set</button>';
+    const host = anchorEl.closest('label');
+    host.parentNode.insertBefore(box, host.nextSibling);
+    function findKey() {
+      try { if (typeof googleKeyInput !== 'undefined' && googleKeyInput && googleKeyInput.value.trim()) return googleKeyInput.value.trim(); } catch (e) {}
+      const pw = Array.from(document.querySelectorAll('input[type="password"]')).map((i) => i.value.trim()).find(Boolean);
+      if (pw) return pw;
+      try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/google/i.test(k)) { const v = localStorage.getItem(k); if (v && v.length > 20) return v; } } } catch (e) {}
+      return '';
+    }
+    document.getElementById('angSetBtn').addEventListener('click', async () => {
+      const files = state.baseFiles || [];
+      if (!files.length) return setStatus('Upload the photos first (Drop sample photos).', 'is-error');
+      const picks = Array.from(box.querySelectorAll('.angSetCk')).filter((c) => c.checked).map((c) => c.value);
+      if (!picks.length) return setStatus('Tick at least one angle.', 'is-error');
+      const key = findKey();
+      if (!key) return setStatus('Enter your Google API key in the Google API key section first.', 'is-error');
+      const extra = (typeof freePromptInput !== 'undefined' && freePromptInput) ? freePromptInput.value.trim() : '';
+      const resolution = document.getElementById('angSetRes').value;
+      const aspect = document.getElementById('angSetAspect').value;
+      const tasks = [];
+      files.forEach((f, i) => picks.forEach((k) => tasks.push({ idx: i, k, outName: 'Photo ' + (i + 1) + ' - ' + ANGLES[k].name })));
+      const btn = document.getElementById('angSetBtn'); btn.disabled = true;
+      renderPlaceholders(tasks.map((t) => t.outName), 1);
+      setStatus('Developing ' + tasks.length + ' angle image(s)…');
+      const finished = []; let done = 0;
+      await Promise.all(tasks.map(async (t, j) => {
+        await new Promise((r) => setTimeout(r, j * 250));
+        let result;
+        try {
+          const ref = await window.__getSoloRef(t.idx);
+          const prompt = 'Image 1 shows my product worn by a model. Create ONE new professional e-commerce photo. ' + ANGLES[t.k].text
+            + ' Keep EXACTLY the same t-shirt (same colour, same hue and darkness, same fabric, same fit, same neckline, same labels) and the same model and styling as image 1. Clean studio background matching image 1, sharp focus, true-to-life colour. Output one single photo only, no collage, no grid, no text.'
+            + (extra ? ' Extra instructions: ' + extra : '');
+          const resp = await fetch('/api/edit', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ async: '1', referenceId: ref, baseIndex: 0, mode: 'free', prompt, outName: t.outName, variant: 1, resolution, aspectRatio: aspect, provider: 'google', googleApiKey: key }),
+          });
+          result = await resp.json();
+          if (result && result.jobId) result = await pollJob(result.jobId);
+        } catch (err) { result = { status: 'FAILED', error: err.message }; }
+        renderCellResult(j, 1, t.outName, result, aspect, resolution);
+        if (result && result.status === 'COMPLETED') finished.push({ label: t.outName, url: result.imageUrl });
+        done++; if (typeof sheetSub !== 'undefined') sheetSub.textContent = done + ' of ' + tasks.length + ' frames developed.';
+      }));
+      btn.disabled = false;
+      if (finished.length) { downloadAllBtn.hidden = false; downloadAllBtn.onclick = () => downloadAll(finished); }
+      setStatus('Angle set done — ' + finished.length + ' of ' + tasks.length + ' succeeded. Download the zip now.', finished.length ? 'is-ok' : 'is-error');
+    });
+  })();
+
   applyWorkspace('angles');
 })();
