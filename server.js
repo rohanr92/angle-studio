@@ -346,7 +346,7 @@ async function googleFromParts({ apiKey, model, parts, aspectRatio, resolution }
   let res;
   try {
     res = await withRetry(() => axios.post(`${GOOGLE_BASE}/${model}:generateContent`, body, {
-      headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' }, maxBodyLength: Infinity, timeout: 300000,
+      headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' }, maxBodyLength: Infinity, timeout: 600000,
     }));
   } catch (err) {
     const e = err.response && err.response.data && err.response.data.error;
@@ -671,7 +671,7 @@ async function googleGenerate({ apiKey, model, prompt, productImgs, guideImg, lo
   let res;
   try {
     res = await withRetry(() => axios.post(`${GOOGLE_BASE}/${model}:generateContent`, body, {
-      headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' }, maxBodyLength: Infinity, timeout: 300000,
+      headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' }, maxBodyLength: Infinity, timeout: 600000,
     }));
   } catch (err) {
     const e = err.response && err.response.data && err.response.data.error;

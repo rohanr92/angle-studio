@@ -595,7 +595,7 @@
   document.addEventListener('click', (e) => { if (!mentionMenu.contains(e.target) && e.target !== freePromptInput) mentionMenu.hidden = true; });
 
   async function pollJob(jobId) {
-    const deadline = Date.now() + 20 * 60e3;
+    const deadline = Date.now() + 60 * 60e3;
     while (Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 2500));
       try {
@@ -605,7 +605,7 @@
         if (dd.done) return dd.result;
       } catch (e) { /* transient network blip — keep polling */ }
     }
-    return { status: 'FAILED', error: 'Timed out waiting for the result (20 min).' };
+    return { status: 'FAILED', error: 'Still waiting after 60 min — Google is very slow or the queue is long. The image may still finish: check Recover recent later.' };
   }
 
   async function runEditSet() {
