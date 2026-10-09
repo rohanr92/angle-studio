@@ -367,6 +367,20 @@ async function googleFromParts({ apiKey, model, parts, aspectRatio, resolution }
 }
 
 // Extend the canvas to an exact target ratio (e.g. 4:5) with the image's own background colour, never cropping the product
+// Fill the frame: centre-crop to the target ratio instead of adding padding bands (used for model photos)
+async function cropToAspect(buf, targetAspect) {
+  let t = targetAspect;
+  if (typeof t === 'string' && t.includes(':')) { const [w, h] = t.split(':').map(Number); t = w / h; } else t = Number(t);
+  if (!t || !isFinite(t)) return buf;
+  const m = await sharp(buf).metadata();
+  const W = m.width, H = m.height, cur = W / H;
+  if (Math.abs(cur - t) < 0.005) return buf;
+  let cw = W, ch = H;
+  if (cur > t) cw = Math.round(H * t); else ch = Math.round(W / t);
+  const left = Math.round((W - cw) / 2), top = Math.round((H - ch) / 2);
+  return sharp(buf).extract({ left, top, width: cw, height: ch }).png().toBuffer();
+}
+
 async function padToAspect(buf, targetAspect) {
   if (!sharp || !targetAspect) return buf;
   const [aw, ah] = String(targetAspect).split(':').map(Number);
@@ -1145,7 +1159,7 @@ app.post('/api/edit', async (req, res) => {
     const base = isApparel ? (entry.product && entry.product[Number(baseIndex)]) : (entry.bases && entry.bases[Number(baseIndex)]);
     if (!base) return res.status(400).json({ error: 'No ' + (isApparel ? 'product' : 'sample') + ' photo at index ' + baseIndex });
     const styleRef = isApparel ? (entry.bases && entry.bases[0]) : null;
-    if (mode !== 'logo' && mode !== 'recolor' && mode !== 'bg' && mode !== 'pose' && mode !== 'material' && mode !== 'sheetangle' && mode !== 'modelfix' && !entry.product.length) return res.status(400).json({ error: 'Upload product photos too.' });
+    if (mode !== 'logo' && mode !== 'recolor' && mode !== 'bg' && mode !== 'pose' && mode !== 'material' && mode !== 'sheetangle' && mode !== 'modelfix' && mode !== 'free' && !entry.product.length) return res.status(400).json({ error: 'Upload product photos too.' });
 
     // async mode: acknowledge now, deliver via /api/job/:id
     let jobId = null;
@@ -1509,7 +1523,7 @@ app.post('/api/edit', async (req, res) => {
         console.log('  label overlay: ' + r.hits.map((h, i) => 'label ' + (i + 1) + (h ? ' pasted at ' + h.x + ',' + h.y + ' ' + h.w + 'x' + h.h + ' (match ' + h.score.toFixed(2) + ')' : ' not pasted — no confident match, left as generated')).join('; '));
       } catch (e) { console.warn('  label overlay failed: ' + e.message); }
     }
-    if (targetAspect) { try { outBuf = await padToAspect(g.buf, targetAspect); } catch (e) { console.warn('  pad to ' + targetAspect + ' failed: ' + e.message); } }
+    if (targetAspect) { try { outBuf = await ((mode === 'free' || mode === 'modelfix' || mode === 'swap') ? cropToAspect(g.buf, targetAspect) : padToAspect(g.buf, targetAspect)); } catch (e) { console.warn('  pad to ' + targetAspect + ' failed: ' + e.message); } }
     const cleaned = await passthrough(outBuf, targetAspect ? 'image/png' : g.mime);
     console.log(`  [edit/${mode}] photo ${Number(baseIndex) + 1} v${variant}: done ${cleaned.width}x${cleaned.height} (requested ${String(resolution).toUpperCase()}, generated ${aspect}${targetAspect ? ', padded to ' + targetAspect : ''}) via ${provider}/${model}`);
     const id = crypto.randomUUID();

@@ -616,7 +616,7 @@
     if (workspace === 'bg' && ((bgChoiceSelect.value === 'ref' || shadowSrcSelect.value === 'ref') && !state.bgRefFile)) return setStatus('Add the reference image, or switch Background/Shadow away from "From reference image".', 'is-error');
     if (workspace === 'recolor' && recolorColorSelect.value === 'ref' && !state.recolorRefFile) return setStatus('Add the colour reference image, or pick another colour.', 'is-error');
     if (workspace === 'logo' && !state.logoFile) return setStatus('Upload your logo (Brand logo upload).', 'is-error');
-    if (workspace !== 'logo' && workspace !== 'recolor' && workspace !== 'bg' && workspace !== 'pose' && workspace !== 'material' && workspace !== 'modelfix' && !state.refFiles.length) return setStatus('Upload product photos too.', 'is-error');
+    if (workspace !== 'logo' && workspace !== 'recolor' && workspace !== 'bg' && workspace !== 'pose' && workspace !== 'material' && workspace !== 'modelfix' && workspace !== 'free' && !state.refFiles.length) return setStatus('Upload product photos too.', 'is-error');
     if (workspace === 'free' && !freePromptInput.value.trim()) return setStatus('Write your prompt (type @ to reference photos).', 'is-error');
     generateBtn.disabled = true;
     const resolution = resolutionSelect.value;
@@ -1075,7 +1075,6 @@
         cache.set(f, (async () => {
           const fd = new FormData();
           fd.append('bases', f);
-          (state.refFiles || []).forEach((p) => fd.append('product', p));
           const r = await fetch('/api/reference', { method: 'POST', body: fd });
           const d = await r.json();
           if (!r.ok || !d.referenceId) { cache.delete(f); throw new Error(d.error || 'upload failed'); }
