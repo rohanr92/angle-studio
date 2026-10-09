@@ -1090,6 +1090,7 @@
     const anchorEl = document.getElementById('freeSoloCheck');
     if (!anchorEl) return;
     const ANGLES = {
+      frontclose: { name: 'Front close-up', text: 'A FRONT CLOSE-UP of the SAME model facing the camera straight on: frame from the top of the head (the very top of the hair may be slightly cropped) down to just below the jeans waistband, arms relaxed at the sides, the t-shirt centred and filling most of the frame so the neckline, shoulders, sleeves, fit and hem are clearly visible.' },
       back: { name: 'Back', text: 'Show the SAME model from directly BEHIND (back view), standing naturally, so the back of the t-shirt is fully visible.' },
       side: { name: 'Side', text: 'Show the SAME model in a SIDE PROFILE view (turned 90 degrees), so the side of the t-shirt, sleeve and fit are clearly visible.' },
       close: { name: 'Close-up', text: 'A CLOSE-UP of the SAME model from chest to waist, front view, the t-shirt filling most of the frame so neckline, sleeves and fit are clearly visible.' },
