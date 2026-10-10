@@ -1234,3 +1234,118 @@
 
   applyWorkspace('angles');
 })();
+
+// ===== patch93: Angles background option =====
+(function () {
+  var LS = 'angles_bg_v1';
+  function load() { try { return JSON.parse(localStorage.getItem(LS) || '{}') || {}; } catch (e) { return {}; } }
+  function save(o) { try { localStorage.setItem(LS, JSON.stringify(o)); } catch (e) {} }
+  var st = Object.assign({ mode: 'white', custom: '', refHex: '' }, load());
+
+  function build(bar) {
+    if (document.getElementById('anglesBgSelect')) return;
+    var wrap = document.createElement('label');
+    wrap.style.cssText = 'display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;';
+    wrap.innerHTML =
+      '<span>Background</span>' +
+      '<select id="anglesBgSelect">' +
+        '<option value="white">White (#FFFFFF)</option>' +
+        '<option value="grey">Light grey</option>' +
+        '<option value="custom">Other colour…</option>' +
+        '<option value="ref">From my background image…</option>' +
+      '</select>' +
+      '<input id="anglesBgColor" type="color" value="#ffffff" title="Pick colour" style="display:none;width:34px;height:26px;padding:0;border:none;background:none;">' +
+      '<input id="anglesBgCustom" type="text" placeholder="#F5F0E8 or e.g. warm beige" style="display:none;width:180px;">' +
+      '<input id="anglesBgFile" type="file" accept="image/*" style="display:none;max-width:200px;">' +
+      '<span id="anglesBgSwatch" style="display:none;width:22px;height:22px;border:1px solid #999;border-radius:4px;"></span>' +
+      '<span id="anglesBgInfo" style="font-size:12px;opacity:.75;"></span>';
+    bar.appendChild(wrap);
+
+    var sel = document.getElementById('anglesBgSelect');
+    var col = document.getElementById('anglesBgColor');
+    var txt = document.getElementById('anglesBgCustom');
+    var file = document.getElementById('anglesBgFile');
+    var sw = document.getElementById('anglesBgSwatch');
+    var info = document.getElementById('anglesBgInfo');
+
+    function refresh() {
+      var m = sel.value;
+      col.style.display = txt.style.display = (m === 'custom') ? '' : 'none';
+      file.style.display = (m === 'ref') ? '' : 'none';
+      var hex = m === 'ref' ? st.refHex : (m === 'custom' && /^#?[0-9a-f]{6}$/i.test(txt.value.trim()) ? ('#' + txt.value.trim().replace('#', '')) : '');
+      sw.style.display = hex ? '' : 'none';
+      if (hex) sw.style.background = hex;
+      info.textContent = m === 'ref' ? (st.refHex ? ('Gemini gets ' + st.refHex.toUpperCase()) : 'upload your background photo') : '';
+      st.mode = m; st.custom = txt.value; save(st);
+    }
+    sel.value = st.mode || 'white';
+    if (!sel.value) sel.value = 'white';
+    txt.value = st.custom || '';
+    if (/^#[0-9a-f]{6}$/i.test(txt.value.trim())) col.value = txt.value.trim().toLowerCase();
+    sel.addEventListener('change', refresh);
+    txt.addEventListener('input', function () { var v = txt.value.trim(); if (/^#?[0-9a-f]{6}$/i.test(v)) col.value = '#' + v.replace('#', '').toLowerCase(); refresh(); });
+    col.addEventListener('input', function () { txt.value = col.value.toUpperCase(); refresh(); });
+
+    // Sample the backdrop colour from the outer border of the uploaded background photo (median per channel).
+    file.addEventListener('change', function () {
+      var f = file.files && file.files[0];
+      if (!f) return;
+      info.textContent = 'reading…';
+      var url = URL.createObjectURL(f);
+      var img = new Image();
+      img.onload = function () {
+        var W = 200, H = Math.max(1, Math.round(200 * img.naturalHeight / img.naturalWidth));
+        var c = document.createElement('canvas'); c.width = W; c.height = H;
+        var g = c.getContext('2d'); g.drawImage(img, 0, 0, W, H);
+        var d = g.getImageData(0, 0, W, H).data, R = [], G = [], B = [];
+        var band = Math.max(2, Math.round(Math.min(W, H) * 0.06));
+        for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
+          if (x >= band && x < W - band && y >= band) continue; // top + side bands (floor area under product skipped)
+          var i = (y * W + x) * 4; R.push(d[i]); G.push(d[i + 1]); B.push(d[i + 2]);
+        }
+        function med(a) { a.sort(function (p, q) { return p - q; }); return a[Math.floor(a.length / 2)] || 255; }
+        var hex = '#' + [med(R), med(G), med(B)].map(function (v) { return v.toString(16).padStart(2, '0'); }).join('');
+        st.refHex = hex.toUpperCase(); save(st);
+        URL.revokeObjectURL(url);
+        refresh();
+      };
+      img.onerror = function () { info.textContent = 'could not read that image'; };
+      img.src = url;
+    });
+    refresh();
+  }
+
+  var tries = 0;
+  (function wait() {
+    var bar = document.getElementById('anglesOptionsBar');
+    if (bar) return build(bar);
+    if (++tries < 80) setTimeout(wait, 250);
+  })();
+
+  function fields() {
+    var m = st.mode || 'white';
+    if (m === 'ref') return st.refHex ? { angBg: 'ref', angBgCustom: st.refHex } : { angBg: 'white', angBgCustom: '' };
+    if (m === 'custom') return (st.custom || '').trim() ? { angBg: 'custom', angBgCustom: st.custom.trim() } : { angBg: 'white', angBgCustom: '' };
+    return { angBg: m, angBgCustom: '' };
+  }
+
+  var _f = window.fetch;
+  window.fetch = function (url, opts) {
+    try {
+      var u = typeof url === 'string' ? url : (url && url.url) || '';
+      if (u.indexOf('/api/generate-angle') !== -1 && opts && opts.body) {
+        var fl = fields();
+        if (typeof opts.body === 'string') {
+          var b = JSON.parse(opts.body);
+          b.angBg = fl.angBg; b.angBgCustom = fl.angBgCustom;
+          opts = Object.assign({}, opts, { body: JSON.stringify(b) });
+        } else if (opts.body instanceof FormData) {
+          opts.body.set('angBg', fl.angBg); opts.body.set('angBgCustom', fl.angBgCustom);
+        } else if (opts.body instanceof URLSearchParams) {
+          opts.body.set('angBg', fl.angBg); opts.body.set('angBgCustom', fl.angBgCustom);
+        }
+      }
+    } catch (e) {}
+    return _f.call(this, url, opts);
+  };
+})();

@@ -949,6 +949,7 @@ app.post('/api/generate-angle', async (req, res) => {
       postProcess = 'off',
       productType = 'shoes', prodFit = 'product', prodFitLabel = '',
       neckLabel = 'keep', hemLabel = 'keep',
+      angBg = 'white', angBgCustom = '',
     } = req.body || {};
     const PP = String(postProcess) === 'on';
 
@@ -1016,7 +1017,29 @@ app.post('/api/generate-angle', async (req, res) => {
     } else {
       lines.push(`Camera angle and composition: ${angleDesc || angleLabel || 'front three-quarter view at eye level'}.`);
     }
-    if (guideMode !== 'style') lines.push('Background: seamless pure white (#FFFFFF) with even, soft studio lighting, and only a faint, soft contact shadow directly under the sole. No other shadows, no props, no text.');
+    {
+      const __ab = String(angBg || 'white').toLowerCase();
+      const __raw = String(angBgCustom || '').replace(/[\r\n"'`]/g, ' ').trim().slice(0, 140);
+      let __hex = null;
+      const __m3 = __raw.match(/^#?([0-9a-f])([0-9a-f])([0-9a-f])$/i);
+      const __m6 = __raw.match(/^#?([0-9a-f]{6})$/i);
+      const __mr = __raw.match(/^rgb\s*\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/i);
+      if (__m6) __hex = '#' + __m6[1].toUpperCase();
+      else if (__m3) __hex = ('#' + __m3[1] + __m3[1] + __m3[2] + __m3[2] + __m3[3] + __m3[3]).toUpperCase();
+      else if (__mr) __hex = '#' + [__mr[1], __mr[2], __mr[3]].map((v) => Math.min(255, +v).toString(16).padStart(2, '0')).join('').toUpperCase();
+      const __rgb = __hex ? [1, 3, 5].map((i) => parseInt(__hex.slice(i, i + 2), 16)).join(', ') : '';
+      const __tail = ' The backdrop must be one clean, even, seamless surface edge to edge (no gradient bands, no floor line, no vignette, no leftover background from the reference photos), with soft even studio lighting and only a soft, tight, natural contact shadow directly under the product where it touches the surface. No other shadows, no props, no text. This background instruction overrides any instruction to keep a reference photo background.';
+      if (__ab === 'grey') {
+        lines.push('Background: seamless light grey (#F2F2F2, rgb 242, 242, 242).' + __tail);
+        console.log('  angles background: light grey #F2F2F2');
+      } else if ((__ab === 'custom' || __ab === 'ref') && __raw) {
+        if (__hex) lines.push('Background: seamless solid colour exactly ' + __hex + ' (rgb ' + __rgb + ')' + (__ab === 'ref' ? ', matching the backdrop colour of the customer\'s own background photo' : '') + '.' + __tail);
+        else lines.push('Background: ' + __raw + ' — as a seamless studio backdrop.' + __tail);
+        console.log('  angles background: ' + __ab + ' ' + (__hex || __raw));
+      } else {
+        if (guideMode !== 'style') lines.push('Background: seamless pure white (#FFFFFF) with even, soft studio lighting, and only a faint, soft contact shadow directly under the sole. No other shadows, no props, no text.');
+      }
+    }
     if (guideMode !== 'style') lines.push('The whole shoe must be fully inside the frame, centred, with an even margin on every side. Nothing cropped, no second object, no sketch or silhouette.');
     if (guideMode !== 'style') lines.push(logoImg
       ? 'The logo image shows the brand\'s exact logo; reproduce it precisely, only where it appears on the shoe in the product images.'
