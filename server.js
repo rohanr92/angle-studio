@@ -381,6 +381,69 @@ async function cropToAspect(buf, targetAspect) {
   return sharp(buf).extract({ left, top, width: cw, height: ch }).png().toBuffer();
 }
 
+// Background tab: force the backdrop to pure white/#F8F8F8, keep the product and its shadow (pixel math, no AI)
+async function whitenBackground(buf, target) {
+  const T = target || 255;
+  const meta = await sharp(buf).metadata();
+  const W = meta.width, H = meta.height;
+  const full = await sharp(buf).removeAlpha().raw().toBuffer();
+  const SW = Math.min(1200, W), SH = Math.max(1, Math.round(H * SW / W));
+  const sm = await sharp(buf).removeAlpha().resize(SW, SH, { fit: 'fill' }).raw().toBuffer();
+  const N = SW * SH;
+  const lum = new Uint8Array(N), cand = new Uint8Array(N);
+  for (let p = 0; p < N; p++) {
+    const r = sm[p * 3], g = sm[p * 3 + 1], b = sm[p * 3 + 2];
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+    lum[p] = mx;
+    cand[p] = (mx - mn <= 16 && mx >= 110) ? 1 : 0;
+  }
+  const mask = new Uint8Array(N), q = new Int32Array(N); let qh = 0, qt = 0;
+  const push = (p) => { if (cand[p] && !mask[p]) { mask[p] = 1; q[qt++] = p; } };
+  for (let x = 0; x < SW; x++) { push(x); push(x + (SH - 1) * SW); }
+  for (let y = 0; y < SH; y++) { push(y * SW); push(y * SW + SW - 1); }
+  while (qh < qt) {
+    const p = q[qh++], x = p % SW, y = (p - x) / SW;
+    if (x > 0) push(p - 1); if (x < SW - 1) push(p + 1);
+    if (y > 0) push(p - SW); if (y < SH - 1) push(p + SW);
+  }
+  const border = []; for (let x = 0; x < SW; x += 4) { border.push(lum[x], lum[x + (SH - 1) * SW]); }
+  border.sort((a, b) => a - b); const med = border[Math.floor(border.length / 2)] || 230;
+  const R = Math.max(8, Math.round(SW / 10));
+  async function levelPass(keep) {
+    const val = Buffer.alloc(N), wgt = Buffer.alloc(N);
+    for (let p = 0; p < N; p++) { if (mask[p] && keep(p)) { val[p] = lum[p]; wgt[p] = 255; } }
+    const vb = await sharp(val, { raw: { width: SW, height: SH, channels: 1 } }).blur(R).extractChannel(0).raw().toBuffer();
+    const wb = await sharp(wgt, { raw: { width: SW, height: SH, channels: 1 } }).blur(R).extractChannel(0).raw().toBuffer();
+    return { vb, wb };
+  }
+  const first = await levelPass(() => true);
+  const L0 = (p) => first.wb[p] > 8 ? first.vb[p] * 255 / first.wb[p] : med;
+  const { vb, wb } = await levelPass((p) => lum[p] >= L0(p) - 14);
+  const lvl = Buffer.alloc(N);
+  for (let p = 0; p < N; p++) lvl[p] = wb[p] > 8 ? Math.min(255, Math.max(80, Math.round(vb[p] * 255 / wb[p]))) : med;
+  const m8 = Buffer.alloc(N); for (let p = 0; p < N; p++) m8[p] = mask[p] ? 255 : 0;
+  const mErode = await sharp(m8, { raw: { width: SW, height: SH, channels: 1 } }).blur(1.2).threshold(220).extractChannel(0).raw().toBuffer();
+  for (let p = 0; p < N; p++) { const x = p % SW, y = (p - x) / SW; if (m8[p] && (x < 4 || y < 4 || x >= SW - 4 || y >= SH - 4)) mErode[p] = 255; }
+  const mFull = await sharp(mErode, { raw: { width: SW, height: SH, channels: 1 } }).resize(W, H, { fit: 'fill' }).blur(Math.max(1.5, W / 1400)).raw().toBuffer({ resolveWithObject: true });
+  const lFull = await sharp(lvl, { raw: { width: SW, height: SH, channels: 1 } }).resize(W, H, { fit: 'fill' }).raw().toBuffer({ resolveWithObject: true });
+  const MC = mFull.info.channels, LC = lFull.info.channels;
+  let changed = 0;
+  for (let p = 0; p < W * H; p++) {
+    if ((p & 0xFFFFF) === 0) await new Promise((r) => setImmediate(r));
+    const m = mFull.data[p * MC] / 255; if (m <= 0.004) continue;
+    const L = lFull.data[p * LC] || 230, i = p * 3;
+    const r = full[i], g = full[i + 1], b = full[i + 2];
+    const ratio = Math.max(r, g, b) / L;
+    let nr, ng, nb;
+    if (ratio >= 0.965) { nr = ng = nb = T; }
+    else { const k = T / L; const y = Math.round((r + g + b) / 3 * k); nr = ng = nb = Math.min(T, y); }
+    full[i] = Math.round(r + (nr - r) * m); full[i + 1] = Math.round(g + (ng - g) * m); full[i + 2] = Math.round(b + (nb - b) * m);
+    changed++;
+  }
+  console.log('  background whitened: ' + Math.round(changed * 100 / (W * H)) + '% of the frame set to ' + (T === 255 ? '#FFFFFF' : '#F8F8F8') + ' (shadow kept)');
+  return sharp(full, { raw: { width: W, height: H, channels: 3 } }).png().toBuffer();
+}
+
 async function padToAspect(buf, targetAspect) {
   if (!sharp || !targetAspect) return buf;
   const [aw, ah] = String(targetAspect).split(':').map(Number);
@@ -1524,6 +1587,7 @@ app.post('/api/edit', async (req, res) => {
       } catch (e) { console.warn('  label overlay failed: ' + e.message); }
     }
     if (targetAspect) { try { outBuf = await (mode === 'free' ? cropToAspect(g.buf, targetAspect) : padToAspect(g.buf, targetAspect)); } catch (e) { console.warn('  pad to ' + targetAspect + ' failed: ' + e.message); } }
+    { const __bc = (typeof bgChoice !== 'undefined' ? String(bgChoice) : '').toLowerCase(); if (mode === 'bg' && (__bc === 'white' || /grey|gray|f8/.test(__bc))) { try { outBuf = await whitenBackground(outBuf, __bc === 'white' ? 255 : 248); } catch (e) { console.warn('  whiten background failed: ' + e.message); } } }
     const cleaned = await passthrough(outBuf, targetAspect ? 'image/png' : g.mime);
     console.log(`  [edit/${mode}] photo ${Number(baseIndex) + 1} v${variant}: done ${cleaned.width}x${cleaned.height} (requested ${String(resolution).toUpperCase()}, generated ${aspect}${targetAspect ? ', padded to ' + targetAspect : ''}) via ${provider}/${model}`);
     const id = crypto.randomUUID();
