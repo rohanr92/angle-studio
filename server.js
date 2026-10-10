@@ -1523,7 +1523,7 @@ app.post('/api/edit', async (req, res) => {
         console.log('  label overlay: ' + r.hits.map((h, i) => 'label ' + (i + 1) + (h ? ' pasted at ' + h.x + ',' + h.y + ' ' + h.w + 'x' + h.h + ' (match ' + h.score.toFixed(2) + ')' : ' not pasted — no confident match, left as generated')).join('; '));
       } catch (e) { console.warn('  label overlay failed: ' + e.message); }
     }
-    if (targetAspect) { try { outBuf = await ((mode === 'free' || mode === 'modelfix' || mode === 'swap') ? cropToAspect(g.buf, targetAspect) : padToAspect(g.buf, targetAspect)); } catch (e) { console.warn('  pad to ' + targetAspect + ' failed: ' + e.message); } }
+    if (targetAspect) { try { outBuf = await (mode === 'free' ? cropToAspect(g.buf, targetAspect) : padToAspect(g.buf, targetAspect)); } catch (e) { console.warn('  pad to ' + targetAspect + ' failed: ' + e.message); } }
     const cleaned = await passthrough(outBuf, targetAspect ? 'image/png' : g.mime);
     console.log(`  [edit/${mode}] photo ${Number(baseIndex) + 1} v${variant}: done ${cleaned.width}x${cleaned.height} (requested ${String(resolution).toUpperCase()}, generated ${aspect}${targetAspect ? ', padded to ' + targetAspect : ''}) via ${provider}/${model}`);
     const id = crypto.randomUUID();
