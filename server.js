@@ -403,64 +403,71 @@ async function refBackdropColor(b64) {
 }
 
 async function whitenBackground(buf, target) {
-  const TT = Array.isArray(target) ? target : [target || 255, target || 255, target || 255]; const T = Math.round((TT[0] + TT[1] + TT[2]) / 3);
+  const TT = Array.isArray(target) ? target : [target || 255, target || 255, target || 255];
   const meta = await sharp(buf).metadata();
   const W = meta.width, H = meta.height;
   const full = await sharp(buf).removeAlpha().raw().toBuffer();
   const SW = Math.min(1200, W), SH = Math.max(1, Math.round(H * SW / W));
-  const sm = await sharp(buf).removeAlpha().resize(SW, SH, { fit: 'fill' }).raw().toBuffer();
+  const sm = await sharp(buf).removeAlpha().resize(SW, SH, { fit: 'fill' }).blur(0.8).raw().toBuffer();
   const N = SW * SH;
   const lum = new Uint8Array(N), cand = new Uint8Array(N);
   for (let p = 0; p < N; p++) {
     const r = sm[p * 3], g = sm[p * 3 + 1], b = sm[p * 3 + 2];
     const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
     lum[p] = mx;
-    cand[p] = (mx - mn <= 16 && mx >= 110) ? 1 : 0;
+    cand[p] = (mx - mn <= 20 && mx >= 90) ? 1 : 0;
   }
   const mask = new Uint8Array(N), q = new Int32Array(N); let qh = 0, qt = 0;
   const push = (p) => { if (cand[p] && !mask[p]) { mask[p] = 1; q[qt++] = p; } };
   for (let x = 0; x < SW; x++) { push(x); push(x + (SH - 1) * SW); }
   for (let y = 0; y < SH; y++) { push(y * SW); push(y * SW + SW - 1); }
-  while (qh < qt) {
-    const p = q[qh++], x = p % SW, y = (p - x) / SW;
-    if (x > 0) push(p - 1); if (x < SW - 1) push(p + 1);
-    if (y > 0) push(p - SW); if (y < SH - 1) push(p + SW);
+  while (qh < qt) { const p = q[qh++], x = p % SW, y = (p - x) / SW; if (x > 0) push(p - 1); if (x < SW - 1) push(p + 1); if (y > 0) push(p - SW); if (y < SH - 1) push(p + SW); }
+  const lab = new Int32Array(N); let nl = 0; const sizes = [0];
+  for (let s0 = 0; s0 < N; s0++) {
+    if (mask[s0] || lab[s0]) continue;
+    nl++; let h = 0, t = 0; q[t++] = s0; lab[s0] = nl;
+    while (h < t) { const p = q[h++], x = p % SW, y = (p - x) / SW;
+      const nb = [x > 0 ? p - 1 : -1, x < SW - 1 ? p + 1 : -1, y > 0 ? p - SW : -1, y < SH - 1 ? p + SW : -1];
+      for (const n of nb) if (n >= 0 && !mask[n] && !lab[n]) { lab[n] = nl; q[t++] = n; } }
+    sizes.push(t);
   }
-  const border = []; for (let x = 0; x < SW; x += 4) { border.push(lum[x], lum[x + (SH - 1) * SW]); }
-  border.sort((a, b) => a - b); const med = border[Math.floor(border.length / 2)] || 230;
+  const minKeep = N * 0.004;
+  for (let p = 0; p < N; p++) if (!mask[p] && sizes[lab[p]] < minKeep) mask[p] = 1;
   const R = Math.max(8, Math.round(SW / 10));
-  async function levelPass(keep) {
-    const val = Buffer.alloc(N), wgt = Buffer.alloc(N);
-    for (let p = 0; p < N; p++) { if (mask[p] && keep(p)) { val[p] = lum[p]; wgt[p] = 255; } }
-    const vb = await sharp(val, { raw: { width: SW, height: SH, channels: 1 } }).blur(R).extractChannel(0).raw().toBuffer();
-    const wb = await sharp(wgt, { raw: { width: SW, height: SH, channels: 1 } }).blur(R).extractChannel(0).raw().toBuffer();
-    return { vb, wb };
+  async function nblur(val, wgt, rad) {
+    const vb = await sharp(val, { raw: { width: SW, height: SH, channels: 1 } }).blur(rad).extractChannel(0).raw().toBuffer();
+    const wb = await sharp(wgt, { raw: { width: SW, height: SH, channels: 1 } }).blur(rad).extractChannel(0).raw().toBuffer();
+    const out = new Float32Array(N); for (let p = 0; p < N; p++) out[p] = wb[p] > 6 ? vb[p] / wb[p] : -1; return out;
   }
-  const first = await levelPass(() => true);
-  const L0 = (p) => first.wb[p] > 8 ? first.vb[p] * 255 / first.wb[p] : med;
-  const { vb, wb } = await levelPass((p) => lum[p] >= L0(p) - 14);
-  const lvl = Buffer.alloc(N);
-  for (let p = 0; p < N; p++) lvl[p] = wb[p] > 8 ? Math.min(255, Math.max(80, Math.round(vb[p] * 255 / wb[p]))) : med;
+  let v = Buffer.alloc(N), w = Buffer.alloc(N);
+  for (let p = 0; p < N; p++) if (mask[p]) { v[p] = lum[p]; w[p] = 255; }
+  const L0 = await nblur(v, w, R);
+  v = Buffer.alloc(N); w = Buffer.alloc(N);
+  for (let p = 0; p < N; p++) if (mask[p] && L0[p] > 0 && lum[p] >= L0[p] * 255 - 14) { v[p] = lum[p]; w[p] = 255; }
+  const Lr = await nblur(v, w, R);
+  const L = new Float32Array(N);
+  let med = 230; { const b = []; for (let x = 0; x < SW; x += 3) b.push(lum[x], lum[x + (SH - 1) * SW]); b.sort((a, c) => a - c); med = b[b.length >> 1] || 230; }
+  for (let p = 0; p < N; p++) L[p] = Lr[p] > 0 ? Math.max(80, Lr[p] * 255) : med;
+  const sv = Buffer.alloc(N), sw = Buffer.alloc(N);
+  for (let p = 0; p < N; p++) if (mask[p]) { const s = Math.max(0, Math.min(1, 1 - lum[p] / L[p])); sv[p] = Math.round(s * 255); sw[p] = 255; }
+  const SR = Math.max(3, Math.round(SW / 160));
+  const shS = await nblur(sv, sw, SR);
+  const shB = Buffer.alloc(N); for (let p = 0; p < N; p++) { let s = shS[p] > 0 ? shS[p] : 0; s = s < 0.035 ? 0 : (s - 0.035) / 0.965; shB[p] = Math.round(Math.min(1, s) * 255); }
   const m8 = Buffer.alloc(N); for (let p = 0; p < N; p++) m8[p] = mask[p] ? 255 : 0;
-  const mErode = await sharp(m8, { raw: { width: SW, height: SH, channels: 1 } }).blur(1.2).threshold(220).extractChannel(0).raw().toBuffer();
-  for (let p = 0; p < N; p++) { const x = p % SW, y = (p - x) / SW; if (m8[p] && (x < 4 || y < 4 || x >= SW - 4 || y >= SH - 4)) mErode[p] = 255; }
-  const mFull = await sharp(mErode, { raw: { width: SW, height: SH, channels: 1 } }).resize(W, H, { fit: 'fill' }).blur(Math.max(1.5, W / 1400)).raw().toBuffer({ resolveWithObject: true });
-  const lFull = await sharp(lvl, { raw: { width: SW, height: SH, channels: 1 } }).resize(W, H, { fit: 'fill' }).raw().toBuffer({ resolveWithObject: true });
-  const MC = mFull.info.channels, LC = lFull.info.channels;
+  const mEr = await sharp(m8, { raw: { width: SW, height: SH, channels: 1 } }).blur(1.2).threshold(210).extractChannel(0).raw().toBuffer();
+  for (let p = 0; p < N; p++) { const x = p % SW, y = (p - x) / SW; if (m8[p] && (x < 4 || y < 4 || x >= SW - 4 || y >= SH - 4)) mEr[p] = 255; }
+  const mF = await sharp(mEr, { raw: { width: SW, height: SH, channels: 1 } }).resize(W, H, { fit: 'fill' }).blur(Math.max(1.5, W / 1400)).extractChannel(0).raw().toBuffer();
+  const sF = await sharp(shB, { raw: { width: SW, height: SH, channels: 1 } }).resize(W, H, { fit: 'fill' }).blur(Math.max(1, W / 2000)).extractChannel(0).raw().toBuffer();
   let changed = 0;
   for (let p = 0; p < W * H; p++) {
     if ((p & 0xFFFFF) === 0) await new Promise((r) => setImmediate(r));
-    const m = mFull.data[p * MC] / 255; if (m <= 0.004) continue;
-    const L = lFull.data[p * LC] || 230, i = p * 3;
-    const r = full[i], g = full[i + 1], b = full[i + 2];
-    const ratio = Math.max(r, g, b) / L;
-    let nr, ng, nb;
-    if (ratio >= 0.965) { nr = TT[0]; ng = TT[1]; nb = TT[2]; }
-    else { const f = Math.min(1, ((r + g + b) / 3) / L); nr = Math.round(TT[0] * f); ng = Math.round(TT[1] * f); nb = Math.round(TT[2] * f); }
-    full[i] = Math.round(r + (nr - r) * m); full[i + 1] = Math.round(g + (ng - g) * m); full[i + 2] = Math.round(b + (nb - b) * m);
+    const m = mF[p] / 255; if (m <= 0.004) continue;
+    const f = 1 - sF[p] / 255, i = p * 3;
+    const nr = TT[0] * f, ng = TT[1] * f, nb = TT[2] * f;
+    full[i] = Math.round(full[i] + (nr - full[i]) * m); full[i + 1] = Math.round(full[i + 1] + (ng - full[i + 1]) * m); full[i + 2] = Math.round(full[i + 2] + (nb - full[i + 2]) * m);
     changed++;
   }
-  console.log('  background whitened: ' + Math.round(changed * 100 / (W * H)) + '% of the frame set to ' + ('rgb(' + TT.join(',') + ')') + ' (shadow kept)');
+  console.log('  background replaced: ' + Math.round(changed * 100 / (W * H)) + '% of the frame set to rgb(' + TT.join(',') + ') (smooth shadow kept)');
   return sharp(full, { raw: { width: W, height: H, channels: 3 } }).png().toBuffer();
 }
 
