@@ -1435,7 +1435,10 @@ app.post('/api/edit', async (req, res) => {
         : (/ref/.test(__bc) && entry.bg) ? 'exactly the background colour and tone of the reference image (copy ONLY its background colour from it, nothing else)'
         : __cust ? __cust : 'pure white #FFFFFF';
       const __sh = (typeof shadowSrc !== 'undefined' ? String(shadowSrc) : 'auto').toLowerCase();
-      const shText = (/ref/.test(__sh) && entry.bg) ? 'a shadow that matches the reference image in shape, softness, direction and strength' : 'one soft, natural contact shadow directly under the product that fades smoothly into the background';
+      const TIGHT = 'a TIGHT CONTACT SHADOW in premium Nordstrom catalogue style: only a very faint, soft, light-grey shadow exactly where the sole touches the ground — a thin line hugging the bottom edge of the sole, fading out within a few millimetres. NOT a dark pool, NOT a wide oval patch spreading around or in front of the product, NOT a cast shadow to one side; the area around the product stays clean white';
+      const shText = (/ref/.test(__sh) && entry.bg)
+        ? 'copy the SHADOW STYLE of the reference image exactly — look at how faint, thin and tight the shadow under its product is and reproduce that same subtle look under my product, never darker, wider or longer than in the reference (' + TIGHT + ')'
+        : TIGHT;
       instruction = [
         'Image 1 is my product photo. Re-shoot it from scratch as a brand-new premium e-commerce studio photograph of the SAME product. Do NOT reuse or copy any pixels of the old background or the old shadow — generate a completely new, clean backdrop and a new shadow.',
         'The product must stay identical in every detail: same shape, colour, material and texture, same stitching, sole, hardware and proportions. Keep EXACTLY the same camera angle, framing, size and position in the frame.',
