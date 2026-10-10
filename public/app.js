@@ -1157,5 +1157,28 @@
     });
   })();
 
+  // --- Background tab: Method (recreate vs keep pixels) ---
+  (function bgMethod() {
+    const sel0 = document.getElementById('bgChoiceSelect');
+    if (!sel0) return;
+    const row = sel0.closest('.spec-row') || sel0.parentNode;
+    const wrap = document.createElement('div');
+    wrap.className = 'spec-row'; wrap.style.cssText = 'margin:8px 0';
+    wrap.innerHTML = '<label class="spec-field"><span>Method</span><select id="bgMethodSelect">'
+      + '<option value="recreate" selected>Recreate on new background (recommended)</option>'
+      + '<option value="keep">Keep exact pixels + clean backdrop</option></select></label>';
+    row.parentNode.insertBefore(wrap, row.nextSibling);
+    const of = window.fetch.bind(window);
+    window.fetch = function (url, opts) {
+      try {
+        if (typeof url === 'string' && url.indexOf('/api/edit') === 0 && opts && typeof opts.body === 'string') {
+          const b = JSON.parse(opts.body);
+          if (b.mode === 'bg') { b.bgMethod = document.getElementById('bgMethodSelect').value; opts = Object.assign({}, opts, { body: JSON.stringify(b) }); }
+        }
+      } catch (e) {}
+      return of(url, opts);
+    };
+  })();
+
   applyWorkspace('angles');
 })();

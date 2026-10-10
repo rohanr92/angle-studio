@@ -382,6 +382,15 @@ async function cropToAspect(buf, targetAspect) {
 }
 
 // Background tab: force the backdrop to pure white/#F8F8F8, keep the product and its shadow (pixel math, no AI)
+async function borderMatches(buf, t) {
+  const { data, info } = await sharp(buf).removeAlpha().resize(200, null).raw().toBuffer({ resolveWithObject: true });
+  const W = info.width, H = info.height; let bad = 0, n = 0;
+  const chk = (x, y) => { const i = (y * W + x) * 3; n++; if (Math.max(Math.abs(data[i] - t[0]), Math.abs(data[i + 1] - t[1]), Math.abs(data[i + 2] - t[2])) > 6) bad++; };
+  for (let x = 0; x < W; x += 2) { chk(x, 0); chk(x, H - 1); }
+  for (let y = 0; y < H; y += 2) { chk(0, y); chk(W - 1, y); }
+  return bad / n < 0.03;
+}
+
 function parseColourText(txt) {
   const t = String(txt || '').trim().toLowerCase();
   let m = t.match(/#?([0-9a-f]{6})\b/); if (m) return [0, 2, 4].map((k) => parseInt(m[1].slice(k, k + 2), 16));
@@ -1385,6 +1394,23 @@ app.post('/api/edit', async (req, res) => {
         'Premium e-commerce quality, sharp focus, true-to-life colour. Output one photorealistic image only.',
       ].join(' ');
       if (String(prompt).trim()) instruction += ' Extra instructions: ' + String(prompt).trim();
+    } else if (mode === 'bg' && String((req.body || {}).bgMethod || 'recreate') === 'recreate') {
+      const __bc = (typeof bgChoice !== 'undefined' ? String(bgChoice) : '').toLowerCase();
+      const __cust = (typeof bgCustom !== 'undefined' ? String(bgCustom) : '').trim();
+      const bgText = __bc === 'white' ? 'pure white #FFFFFF'
+        : /grey|gray|f8/.test(__bc) ? 'very light grey #F8F8F8'
+        : (/ref/.test(__bc) && entry.bg) ? 'exactly the background colour and tone of the reference image (copy ONLY its background colour from it, nothing else)'
+        : __cust ? __cust : 'pure white #FFFFFF';
+      const __sh = (typeof shadowSrc !== 'undefined' ? String(shadowSrc) : 'auto').toLowerCase();
+      const shText = (/ref/.test(__sh) && entry.bg) ? 'a shadow that matches the reference image in shape, softness, direction and strength' : 'one soft, natural contact shadow directly under the product that fades smoothly into the background';
+      instruction = [
+        'Image 1 is my product photo. Re-shoot it as a premium e-commerce studio photo of the SAME product.',
+        'The product must stay identical in every detail: same shape, colour, material and texture, same stitching, sole, hardware and proportions. Keep EXACTLY the same camera angle, framing, size and position in the frame.',
+        'BACKGROUND: completely replace the old backdrop with a seamless, perfectly even ' + bgText + ' background from edge to edge. No trace of the old backdrop may remain: no grey patches, no gradient, no vignette, no floor line, no halo around the product.',
+        'SHADOW: ' + shText + '. No other shadows.',
+        'Even studio lighting, sharp focus, true-to-life colour. Output one photorealistic image only.',
+      ].join(' ');
+      if (String(prompt || '').trim()) instruction += ' Extra instructions: ' + String(prompt).trim();
     } else if (mode === 'bg') {
       const hasRef = !!entry.bg;
       const BGS = {
@@ -1620,6 +1646,7 @@ app.post('/api/edit', async (req, res) => {
         else if (/grey|gray|f8/.test(__bc)) __t = [248, 248, 248];
         else if (/ref/.test(__bc) && entry && entry.bg && entry.bg.base64) { __t = await refBackdropColor(entry.bg.base64); console.log('  reference backdrop colour: rgb(' + __t.join(',') + ')'); }
         if (!__t && typeof bgCustom !== 'undefined' && String(bgCustom).trim()) { __t = parseColourText(bgCustom); if (__t) console.log('  custom backdrop colour "' + String(bgCustom).trim() + '": rgb(' + __t.join(',') + ')'); }
+        if (__t && String((req.body || {}).bgMethod || 'recreate') === 'recreate' && await borderMatches(outBuf, __t)) { console.log('  recreate: backdrop already correct, no pixel cleanup needed'); __t = null; }
         if (__t) outBuf = await whitenBackground(outBuf, __t);
       } catch (e) { console.warn('  backdrop fix failed: ' + e.message); } }
     const cleaned = await passthrough(outBuf, targetAspect ? 'image/png' : g.mime);
