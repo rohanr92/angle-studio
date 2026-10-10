@@ -1274,6 +1274,73 @@ app.post('/api/sheet', sheetUpload.single('sheet'), async (req, res) => {
   }
 });
 
+// ===== Cut-out backdrop (Background tab): exact product, pure backdrop, soft contact shadow — no AI redraw =====
+let __cutChain = Promise.resolve();
+function __cutLock(fn) { const p = __cutChain.then(fn, fn); __cutChain = p.catch(() => {}); return p; }
+async function composeOnBackdrop(cutPng, T, strength) {
+  const { data, info } = await sharp(cutPng).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const W = info.width, H = info.height;
+  const yb = new Float32Array(W).fill(-1);
+  for (let x = 0; x < W; x++) for (let y = H - 1; y >= 0; y--) if (data[(y * W + x) * 4 + 3] > 128) { yb[x] = y; break; }
+  const ys = new Float32Array(W); const R = Math.max(2, Math.round(W / 200));
+  for (let x = 0; x < W; x++) { let a = 0, n = 0; for (let k = -R; k <= R; k++) { const j = x + k; if (j >= 0 && j < W && yb[j] >= 0) { a += yb[j]; n++; } } ys[x] = n ? a / n : -1; }
+  const d = Math.max(3, H / 140);
+  const sh = Buffer.alloc(W * H);
+  for (let x = 0; x < W; x++) { if (ys[x] < 0) continue; for (let y = Math.max(0, Math.floor(ys[x] - d)); y < H; y++) { const dy = y - ys[x]; const v = dy < 0 ? Math.exp(dy / (d * 0.5)) : Math.exp(-dy / d); if (v < 0.01) break; sh[y * W + x] = Math.round(v * 255); } }
+  const shB = await sharp(sh, { raw: { width: W, height: H, channels: 1 } }).blur(Math.max(1.5, W / 250)).extractChannel(0).raw().toBuffer();
+  const out = Buffer.alloc(W * H * 3);
+  for (let p = 0; p < W * H; p++) {
+    if ((p & 0xFFFFF) === 0) await new Promise((r) => setImmediate(r));
+    const s = (shB[p] / 255) * strength, a = data[p * 4 + 3] / 255;
+    for (let c = 0; c < 3; c++) { const bg = T[c] * (1 - s); out[p * 3 + c] = Math.round(data[p * 4 + c] * a + bg * (1 - a)); }
+  }
+  return sharp(out, { raw: { width: W, height: H, channels: 3 } }).png().toBuffer();
+}
+async function padToRatioColour(buf, ratio, T) {
+  const m = String(ratio || '').match(/^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/); if (!m) return buf;
+  const r = Number(m[1]) / Number(m[2]); const meta = await sharp(buf).metadata();
+  let W = meta.width, H = meta.height;
+  if (Math.abs(W / H - r) < 0.003) return buf;
+  let nw = W, nh = H; if (W / H > r) nh = Math.round(W / r); else nw = Math.round(H * r);
+  const left = Math.floor((nw - W) / 2), top = Math.floor((nh - H) / 2);
+  return sharp(buf).extend({ left, right: nw - W - left, top, bottom: nh - H - top, background: { r: T[0], g: T[1], b: T[2] } }).png().toBuffer();
+}
+app.post('/api/cutout', upload.fields([{ name: 'image', maxCount: 1 }, { name: 'ref', maxCount: 1 }]), async (req, res) => {
+  const b = req.body || {};
+  try {
+    const img = req.files && req.files.image && req.files.image[0];
+    if (!img) return res.status(200).json({ status: 'FAILED', error: 'No image received.' });
+    let RB; try { RB = require('@imgly/background-removal-node'); } catch (e) { return res.status(200).json({ status: 'FAILED', error: 'Background remover is not installed. In the angle-studio folder run: npm install @imgly/background-removal-node — then commit and push.' }); }
+    const bc = String(b.bgChoice || 'white').toLowerCase();
+    let T = bc === 'white' ? [255, 255, 255] : /grey|gray|f8/.test(bc) ? [248, 248, 248] : null;
+    const ref = req.files && req.files.ref && req.files.ref[0];
+    if (!T && /ref/.test(bc) && ref && typeof refBackdropColor === 'function') T = await refBackdropColor(ref.buffer.toString('base64'));
+    if (!T && String(b.bgCustom || '').trim() && typeof parseColourText === 'function') T = parseColourText(b.bgCustom);
+    if (!T) T = [255, 255, 255];
+    const t0 = Date.now();
+    const out = await __cutLock(async () => {
+      const input = await sharp(img.buffer).rotate().resize({ width: 4096, height: 4096, fit: 'inside', withoutEnlargement: true }).png().toBuffer();
+      const blob = new Blob([input], { type: 'image/png' });
+      const cutBlob = await RB.removeBackground(blob, { model: 'medium', output: { format: 'image/png' } });
+      const cut = Buffer.from(await cutBlob.arrayBuffer());
+      let o = await composeOnBackdrop(cut, T, 0.42);
+      o = await padToRatioColour(o, b.aspectRatio, T);
+      const LS = { '1k': 1024, '2k': 2048, '4k': 4096 }[String(b.resolution || '').toLowerCase()];
+      if (LS) o = await sharp(o).resize({ width: LS, height: LS, fit: 'inside' }).png().toBuffer();
+      return o;
+    });
+    const cleaned = await passthrough(out, 'image/png');
+    const id = crypto.randomUUID();
+    generatedStore.set(id, { ...cleaned, createdAt: Date.now(), label: 'background-photo' + (Number(b.baseIndex || 0) + 1) + '-cutout' });
+    if (typeof capGeneratedStore === 'function') capGeneratedStore();
+    console.log('  [cutout] photo ' + (Number(b.baseIndex || 0) + 1) + ' on rgb(' + T.join(',') + ') in ' + (Date.now() - t0) + 'ms — exact product, no AI redraw');
+    res.json({ status: 'COMPLETED', imageUrl: '/api/image/' + id + '.png', width: cleaned.width, height: cleaned.height, variant: b.variant, baseIndex: b.baseIndex });
+  } catch (err) {
+    console.warn('  [cutout] failed: ' + err.message);
+    res.status(200).json({ status: 'FAILED', error: 'Cut-out failed: ' + err.message });
+  }
+});
+
 app.get('/api/recent', (req, res) => {
   const items = [];
   for (const [id, g] of generatedStore) items.push({ id, createdAt: g.createdAt, width: g.width || 0, height: g.height || 0, label: g.label || '' });

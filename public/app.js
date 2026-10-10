@@ -1165,7 +1165,7 @@
     const wrap = document.createElement('div');
     wrap.className = 'spec-row'; wrap.style.cssText = 'margin:8px 0';
     wrap.innerHTML = '<label class="spec-field"><span>Method</span><select id="bgMethodSelect">'
-      + '<option value="recreate" selected>Recreate on new background (recommended)</option>'
+      + '<option value="cutout" selected>Cut-out: exact shoe on pure white (recommended)</option><option value="recreate">Recreate with Gemini</option>'
       + '<option value="keep">Keep exact pixels + clean backdrop</option></select></label>';
     row.parentNode.insertBefore(wrap, row.nextSibling);
     const of = window.fetch.bind(window);
@@ -1196,6 +1196,38 @@
           if (b.mode === 'bg') { b.shadowStrength = document.getElementById('shadowStrengthSelect').value; opts = Object.assign({}, opts, { body: JSON.stringify(b) }); }
         }
       } catch (e) {}
+      return of(url, opts);
+    };
+  })();
+
+  // --- Background tab: Cut-out method (exact product on pure backdrop, no AI) ---
+  (function cutoutMode() {
+    const sel = document.getElementById('bgMethodSelect');
+    if (!sel) return;
+    const cache = new Map();
+    const of = window.fetch.bind(window);
+    const J = (o) => new Response(JSON.stringify(o), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    window.fetch = async function (url, opts) {
+      try {
+        if (typeof url === 'string' && url.indexOf('/api/edit') === 0 && opts && typeof opts.body === 'string') {
+          const b = JSON.parse(opts.body);
+          if (b.mode === 'bg' && sel.value === 'cutout') {
+            const f = state.baseFiles && state.baseFiles[Number(b.baseIndex)];
+            if (!f) return J({ status: 'FAILED', error: 'Photo not found — re-upload it.' });
+            const key = [Number(b.baseIndex), f.name, f.size, b.bgChoice, b.bgCustom, b.aspectRatio, b.resolution].join('|');
+            if (!cache.has(key)) cache.set(key, (async () => {
+              const fd = new FormData(); fd.append('image', f);
+              if (state.bgRefFile) fd.append('ref', state.bgRefFile);
+              ['bgChoice', 'bgCustom', 'aspectRatio', 'resolution', 'baseIndex', 'variant'].forEach((k) => fd.append(k, b[k] == null ? '' : String(b[k])));
+              const r = await of('/api/cutout', { method: 'POST', body: fd });
+              try { return await r.json(); } catch (e) { return { status: 'FAILED', error: 'Server replied ' + r.status }; }
+            })());
+            const res = await cache.get(key);
+            if (!res || res.status !== 'COMPLETED') cache.delete(key);
+            return J(Object.assign({}, res, { variant: b.variant, baseIndex: b.baseIndex }));
+          }
+        }
+      } catch (e) { return J({ status: 'FAILED', error: e.message }); }
       return of(url, opts);
     };
   })();
