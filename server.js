@@ -382,8 +382,18 @@ async function cropToAspect(buf, targetAspect) {
 }
 
 // Background tab: force the backdrop to pure white/#F8F8F8, keep the product and its shadow (pixel math, no AI)
+async function refBackdropColor(b64) {
+  const { data, info } = await sharp(Buffer.from(b64, 'base64')).removeAlpha().resize(200, null).raw().toBuffer({ resolveWithObject: true });
+  const W = info.width, H = info.height, rs = [], gs = [], bs = [];
+  const take = (x, y) => { const i = (y * W + x) * 3; rs.push(data[i]); gs.push(data[i + 1]); bs.push(data[i + 2]); };
+  for (let x = 0; x < W; x += 2) { take(x, 0); take(x, 1); take(x, H - 1); take(x, H - 2); }
+  for (let y = 0; y < H; y += 2) { take(0, y); take(1, y); take(W - 1, y); take(W - 2, y); }
+  const med = (a) => { a.sort((p, q) => p - q); return a[Math.floor(a.length / 2)]; };
+  return [med(rs), med(gs), med(bs)];
+}
+
 async function whitenBackground(buf, target) {
-  const T = target || 255;
+  const TT = Array.isArray(target) ? target : [target || 255, target || 255, target || 255]; const T = Math.round((TT[0] + TT[1] + TT[2]) / 3);
   const meta = await sharp(buf).metadata();
   const W = meta.width, H = meta.height;
   const full = await sharp(buf).removeAlpha().raw().toBuffer();
@@ -435,12 +445,12 @@ async function whitenBackground(buf, target) {
     const r = full[i], g = full[i + 1], b = full[i + 2];
     const ratio = Math.max(r, g, b) / L;
     let nr, ng, nb;
-    if (ratio >= 0.965) { nr = ng = nb = T; }
-    else { const k = T / L; const y = Math.round((r + g + b) / 3 * k); nr = ng = nb = Math.min(T, y); }
+    if (ratio >= 0.965) { nr = TT[0]; ng = TT[1]; nb = TT[2]; }
+    else { const f = Math.min(1, ((r + g + b) / 3) / L); nr = Math.round(TT[0] * f); ng = Math.round(TT[1] * f); nb = Math.round(TT[2] * f); }
     full[i] = Math.round(r + (nr - r) * m); full[i + 1] = Math.round(g + (ng - g) * m); full[i + 2] = Math.round(b + (nb - b) * m);
     changed++;
   }
-  console.log('  background whitened: ' + Math.round(changed * 100 / (W * H)) + '% of the frame set to ' + (T === 255 ? '#FFFFFF' : '#F8F8F8') + ' (shadow kept)');
+  console.log('  background whitened: ' + Math.round(changed * 100 / (W * H)) + '% of the frame set to ' + ('rgb(' + TT.join(',') + ')') + ' (shadow kept)');
   return sharp(full, { raw: { width: W, height: H, channels: 3 } }).png().toBuffer();
 }
 
@@ -1587,7 +1597,13 @@ app.post('/api/edit', async (req, res) => {
       } catch (e) { console.warn('  label overlay failed: ' + e.message); }
     }
     if (targetAspect) { try { outBuf = await (mode === 'free' ? cropToAspect(g.buf, targetAspect) : padToAspect(g.buf, targetAspect)); } catch (e) { console.warn('  pad to ' + targetAspect + ' failed: ' + e.message); } }
-    { const __bc = (typeof bgChoice !== 'undefined' ? String(bgChoice) : '').toLowerCase(); if (mode === 'bg' && (__bc === 'white' || /grey|gray|f8/.test(__bc))) { try { outBuf = await whitenBackground(outBuf, __bc === 'white' ? 255 : 248); } catch (e) { console.warn('  whiten background failed: ' + e.message); } } }
+    if (mode === 'bg') { const __bc = (typeof bgChoice !== 'undefined' ? String(bgChoice) : '').toLowerCase(); let __t = null;
+      try {
+        if (__bc === 'white') __t = [255, 255, 255];
+        else if (/grey|gray|f8/.test(__bc)) __t = [248, 248, 248];
+        else if (/ref/.test(__bc) && entry && entry.bg && entry.bg.base64) { __t = await refBackdropColor(entry.bg.base64); console.log('  reference backdrop colour: rgb(' + __t.join(',') + ')'); }
+        if (__t) outBuf = await whitenBackground(outBuf, __t);
+      } catch (e) { console.warn('  backdrop fix failed: ' + e.message); } }
     const cleaned = await passthrough(outBuf, targetAspect ? 'image/png' : g.mime);
     console.log(`  [edit/${mode}] photo ${Number(baseIndex) + 1} v${variant}: done ${cleaned.width}x${cleaned.height} (requested ${String(resolution).toUpperCase()}, generated ${aspect}${targetAspect ? ', padded to ' + targetAspect : ''}) via ${provider}/${model}`);
     const id = crypto.randomUUID();
