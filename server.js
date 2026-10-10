@@ -1315,6 +1315,22 @@ app.post('/api/edit', async (req, res) => {
     // APPAREL_EDIT_V2: in apparel mode each PRODUCT photo is the base image being edited (shape + labels preserved)
     const isApparel = mode === 'apparel';
     const base = isApparel ? (entry.product && entry.product[Number(baseIndex)]) : (entry.bases && entry.bases[Number(baseIndex)]);
+    // Background tab / Recreate: give Gemini a photo whose backdrop is already the target colour
+    if (mode === 'bg' && base && base.base64) {
+      if (String((req.body || {}).bgMethod || 'recreate') === 'recreate') {
+        try {
+          const __bc = (typeof bgChoice !== 'undefined' ? String(bgChoice) : '').toLowerCase();
+          let __t = __bc === 'white' ? [255, 255, 255] : /grey|gray|f8/.test(__bc) ? [248, 248, 248] : null;
+          if (!__t && /ref/.test(__bc) && entry.bg && entry.bg.base64) __t = await refBackdropColor(entry.bg.base64);
+          if (!__t && typeof bgCustom !== 'undefined' && String(bgCustom).trim()) __t = parseColourText(bgCustom);
+          if (!__t) __t = [255, 255, 255];
+          if (!base._orig) base._orig = { b64: base.base64, mime: base.mime };
+          const __w = await whitenBackground(Buffer.from(base._orig.b64, 'base64'), __t);
+          base.base64 = __w.toString('base64'); base.mime = 'image/png';
+          console.log('  recreate: input pre-cleaned to rgb(' + __t.join(',') + ') before sending to Gemini');
+        } catch (e) { console.warn('  recreate pre-clean failed: ' + e.message); }
+      } else if (base._orig) { base.base64 = base._orig.b64; base.mime = base._orig.mime; }
+    }
     if (!base) return res.status(400).json({ error: 'No ' + (isApparel ? 'product' : 'sample') + ' photo at index ' + baseIndex });
     const styleRef = isApparel ? (entry.bases && entry.bases[0]) : null;
     if (mode !== 'logo' && mode !== 'recolor' && mode !== 'bg' && mode !== 'pose' && mode !== 'material' && mode !== 'sheetangle' && mode !== 'modelfix' && mode !== 'free' && !entry.product.length) return res.status(400).json({ error: 'Upload product photos too.' });
