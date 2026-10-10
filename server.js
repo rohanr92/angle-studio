@@ -1708,12 +1708,7 @@ app.post('/api/edit', async (req, res) => {
         else if (/grey|gray|f8/.test(__bc)) __t = [248, 248, 248];
         else if (/ref/.test(__bc) && entry && entry.bg && entry.bg.base64) { __t = await refBackdropColor(entry.bg.base64); console.log('  reference backdrop colour: rgb(' + __t.join(',') + ')'); }
         if (!__t && typeof bgCustom !== 'undefined' && String(bgCustom).trim()) { __t = parseColourText(bgCustom); if (__t) console.log('  custom backdrop colour "' + String(bgCustom).trim() + '": rgb(' + __t.join(',') + ')'); }
-        if (__t && String((req.body || {}).bgMethod || 'recreate') === 'recreate') {
-          if (await borderMatches(outBuf, __t)) console.log('  recreate: backdrop already correct');
-          else { outBuf = await liftToBackdrop(outBuf, __t); console.log('  recreate: smooth backdrop lift to rgb(' + __t.join(',') + ') — no masking, no cut edges'); }
-          { const __ss = String((req.body || {}).shadowStrength || 'light'); const __f = __ss === 'verylight' ? 0.3 : __ss === 'natural' ? 1 : 0.5; if (__f < 1 && (__t[0] + __t[1] + __t[2]) / 3 >= 200) outBuf = await softenShadow(outBuf, __t, __f); }
-          __t = null;
-        }
+        if (__t && String((req.body || {}).bgMethod || 'recreate') === 'recreate') { console.log('  recreate: using the Gemini output as-is (no pixel edits)'); __t = null; }
         if (__t) outBuf = await whitenBackground(outBuf, __t);
       } catch (e) { console.warn('  backdrop fix failed: ' + e.message); } }
     const cleaned = await passthrough(outBuf, targetAspect ? 'image/png' : g.mime);

@@ -1181,7 +1181,7 @@
   })();
 
   // --- Background tab: Shadow strength ---
-  (function shadowStrength() {
+  (function shadowStrength() { return;
     const m = document.getElementById('bgMethodSelect');
     if (!m) return;
     const row = m.closest('.spec-row');
