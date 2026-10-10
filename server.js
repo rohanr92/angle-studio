@@ -382,6 +382,16 @@ async function cropToAspect(buf, targetAspect) {
 }
 
 // Background tab: force the backdrop to pure white/#F8F8F8, keep the product and its shadow (pixel math, no AI)
+function parseColourText(txt) {
+  const t = String(txt || '').trim().toLowerCase();
+  let m = t.match(/#?([0-9a-f]{6})\b/); if (m) return [0, 2, 4].map((k) => parseInt(m[1].slice(k, k + 2), 16));
+  m = t.match(/#([0-9a-f]{3})\b/); if (m) return m[1].split('').map((c) => parseInt(c + c, 16));
+  m = t.match(/(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})/); if (m) return [m[1], m[2], m[3]].map((v) => Math.min(255, Number(v)));
+  const NAMES = [['off white', [248, 247, 244]], ['off-white', [248, 247, 244]], ['light grey', [240, 240, 240]], ['light gray', [240, 240, 240]], ['white', [255, 255, 255]], ['ivory', [255, 252, 240]], ['cream', [250, 246, 236]], ['beige', [240, 232, 218]], ['grey', [200, 200, 200]], ['gray', [200, 200, 200]], ['black', [12, 12, 12]], ['pink', [248, 226, 230]], ['blue', [220, 232, 245]]];
+  for (const [k, v] of NAMES) if (t.includes(k)) return v;
+  return null;
+}
+
 async function refBackdropColor(b64) {
   const { data, info } = await sharp(Buffer.from(b64, 'base64')).removeAlpha().resize(200, null).raw().toBuffer({ resolveWithObject: true });
   const W = info.width, H = info.height, rs = [], gs = [], bs = [];
@@ -1602,6 +1612,7 @@ app.post('/api/edit', async (req, res) => {
         if (__bc === 'white') __t = [255, 255, 255];
         else if (/grey|gray|f8/.test(__bc)) __t = [248, 248, 248];
         else if (/ref/.test(__bc) && entry && entry.bg && entry.bg.base64) { __t = await refBackdropColor(entry.bg.base64); console.log('  reference backdrop colour: rgb(' + __t.join(',') + ')'); }
+        if (!__t && typeof bgCustom !== 'undefined' && String(bgCustom).trim()) { __t = parseColourText(bgCustom); if (__t) console.log('  custom backdrop colour "' + String(bgCustom).trim() + '": rgb(' + __t.join(',') + ')'); }
         if (__t) outBuf = await whitenBackground(outBuf, __t);
       } catch (e) { console.warn('  backdrop fix failed: ' + e.message); } }
     const cleaned = await passthrough(outBuf, targetAspect ? 'image/png' : g.mime);
