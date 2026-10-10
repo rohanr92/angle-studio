@@ -382,6 +382,32 @@ async function cropToAspect(buf, targetAspect) {
 }
 
 // Background tab: force the backdrop to pure white/#F8F8F8, keep the product and its shadow (pixel math, no AI)
+async function softenShadow(buf, t, factor) {
+  const { data, info } = await sharp(buf).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  const W = info.width, H = info.height;
+  const SW = Math.min(700, W), SH = Math.max(8, Math.round(H * SW / W)), N = SW * SH;
+  const sm = await sharp(buf).removeAlpha().resize(SW, SH, { fit: 'fill' }).blur(0.6).raw().toBuffer();
+  const cand = new Uint8Array(N);
+  for (let p = 0; p < N; p++) { const r = sm[p * 3], g = sm[p * 3 + 1], b = sm[p * 3 + 2]; const mx = Math.max(r, g, b), mn = Math.min(r, g, b); cand[p] = (mx - mn <= 14 && mx >= 95) ? 1 : 0; }
+  const mask = new Uint8Array(N), q = new Int32Array(N); let h = 0, tl = 0;
+  const push = (p) => { if (cand[p] && !mask[p]) { mask[p] = 1; q[tl++] = p; } };
+  for (let x = 0; x < SW; x++) { push(x); push(x + (SH - 1) * SW); }
+  for (let y = 0; y < SH; y++) { push(y * SW); push(y * SW + SW - 1); }
+  while (h < tl) { const p = q[h++], x = p % SW, y = (p - x) / SW; if (x > 0) push(p - 1); if (x < SW - 1) push(p + 1); if (y > 0) push(p - SW); if (y < SH - 1) push(p + SW); }
+  const m8 = Buffer.alloc(N); for (let p = 0; p < N; p++) m8[p] = mask[p] ? 255 : 0;
+  const mE = await sharp(m8, { raw: { width: SW, height: SH, channels: 1 } }).blur(1).threshold(200).extractChannel(0).raw().toBuffer();
+  for (let p = 0; p < N; p++) { const x = p % SW, y = (p - x) / SW; if (m8[p] && (x < 3 || y < 3 || x >= SW - 3 || y >= SH - 3)) mE[p] = 255; }
+  const mF = await sharp(mE, { raw: { width: SW, height: SH, channels: 1 } }).resize(W, H, { fit: 'fill' }).blur(Math.max(1.2, W / 1600)).extractChannel(0).raw().toBuffer();
+  for (let p = 0; p < W * H; p++) {
+    if ((p & 0xFFFFF) === 0) await new Promise((r) => setImmediate(r));
+    const m = mF[p] / 255; if (m <= 0.004) continue;
+    const i = p * 3;
+    for (let c = 0; c < 3; c++) { const v = data[i + c]; if (v >= t[c]) continue; const nv = t[c] - (t[c] - v) * factor; data[i + c] = Math.round(v + (nv - v) * m); }
+  }
+  console.log('  shadow softened to ' + Math.round(factor * 100) + '% strength');
+  return sharp(data, { raw: { width: W, height: H, channels: 3 } }).png().toBuffer();
+}
+
 async function liftToBackdrop(buf, t) {
   if ((t[0] + t[1] + t[2]) / 3 < 200) return buf;
   const { data, info } = await sharp(buf).removeAlpha().raw().toBuffer({ resolveWithObject: true });
@@ -1685,6 +1711,7 @@ app.post('/api/edit', async (req, res) => {
         if (__t && String((req.body || {}).bgMethod || 'recreate') === 'recreate') {
           if (await borderMatches(outBuf, __t)) console.log('  recreate: backdrop already correct');
           else { outBuf = await liftToBackdrop(outBuf, __t); console.log('  recreate: smooth backdrop lift to rgb(' + __t.join(',') + ') — no masking, no cut edges'); }
+          { const __ss = String((req.body || {}).shadowStrength || 'light'); const __f = __ss === 'verylight' ? 0.3 : __ss === 'natural' ? 1 : 0.5; if (__f < 1 && (__t[0] + __t[1] + __t[2]) / 3 >= 200) outBuf = await softenShadow(outBuf, __t, __f); }
           __t = null;
         }
         if (__t) outBuf = await whitenBackground(outBuf, __t);

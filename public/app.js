@@ -1180,5 +1180,25 @@
     };
   })();
 
+  // --- Background tab: Shadow strength ---
+  (function shadowStrength() {
+    const m = document.getElementById('bgMethodSelect');
+    if (!m) return;
+    const row = m.closest('.spec-row');
+    const lab = document.createElement('label'); lab.className = 'spec-field';
+    lab.innerHTML = '<span>Shadow strength</span><select id="shadowStrengthSelect"><option value="light" selected>Light (professional)</option><option value="verylight">Very light</option><option value="natural">Natural (as generated)</option></select>';
+    row.appendChild(lab);
+    const of = window.fetch.bind(window);
+    window.fetch = function (url, opts) {
+      try {
+        if (typeof url === 'string' && url.indexOf('/api/edit') === 0 && opts && typeof opts.body === 'string') {
+          const b = JSON.parse(opts.body);
+          if (b.mode === 'bg') { b.shadowStrength = document.getElementById('shadowStrengthSelect').value; opts = Object.assign({}, opts, { body: JSON.stringify(b) }); }
+        }
+      } catch (e) {}
+      return of(url, opts);
+    };
+  })();
+
   applyWorkspace('angles');
 })();
