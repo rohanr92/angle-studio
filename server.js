@@ -382,6 +382,39 @@ async function cropToAspect(buf, targetAspect) {
 }
 
 // Background tab: force the backdrop to pure white/#F8F8F8, keep the product and its shadow (pixel math, no AI)
+async function liftToBackdrop(buf, t) {
+  if ((t[0] + t[1] + t[2]) / 3 < 200) return buf;
+  const { data, info } = await sharp(buf).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  const W = info.width, H = info.height;
+  const SW = 256, SH = Math.max(8, Math.round(H * SW / W));
+  const sm = await sharp(buf).removeAlpha().resize(SW, SH, { fit: 'fill' }).raw().toBuffer();
+  const lum = (x, y) => { const i = (y * SW + x) * 3; return Math.max(sm[i], sm[i + 1], sm[i + 2]); };
+  const smooth = (arr) => arr.map((_, i) => { let a = 0, n = 0; for (let k = -8; k <= 8; k++) { const j = i + k; if (j >= 0 && j < arr.length) { a += arr[j]; n++; } } return a / n; });
+  const T = smooth([...Array(SW)].map((_, x) => (lum(x, 0) + lum(x, 1) + lum(x, 2)) / 3));
+  const Bt = smooth([...Array(SW)].map((_, x) => (lum(x, SH - 1) + lum(x, SH - 2) + lum(x, SH - 3)) / 3));
+  const Lf = smooth([...Array(SH)].map((_, y) => (lum(0, y) + lum(1, y) + lum(2, y)) / 3));
+  const Rt = smooth([...Array(SH)].map((_, y) => (lum(SW - 1, y) + lum(SW - 2, y) + lum(SW - 3, y)) / 3));
+  const map = Buffer.alloc(SW * SH);
+  for (let y = 0; y < SH; y++) for (let x = 0; x < SW; x++) {
+    const u = x / (SW - 1), v = y / (SH - 1);
+    const val = (1 - v) * T[x] + v * Bt[x] + (1 - u) * Lf[y] + u * Rt[y]
+      - ((1 - u) * (1 - v) * T[0] + u * (1 - v) * T[SW - 1] + (1 - u) * v * Bt[0] + u * v * Bt[SW - 1]);
+    map[y * SW + x] = Math.max(150, Math.min(255, Math.round(val)));
+  }
+  const mapF = await sharp(map, { raw: { width: SW, height: SH, channels: 1 } }).resize(W, H, { fit: 'fill' }).extractChannel(0).raw().toBuffer();
+  for (let p = 0; p < W * H; p++) {
+    if ((p & 0xFFFFF) === 0) await new Promise((r) => setImmediate(r));
+    const B = mapF[p], lo = B - 30, i = p * 3, y = Math.max(data[i], data[i + 1], data[i + 2]);
+    if (y <= lo) continue;
+    const sat = y - Math.min(data[i], data[i + 1], data[i + 2]);
+    const neutral = Math.max(0, Math.min(1, (16 - sat) / 8));
+    if (neutral <= 0) continue;
+    let k = Math.min(1, (y - lo) / (B - lo)); k = k * k * (3 - 2 * k) * neutral;
+    data[i] = Math.round(data[i] + (t[0] - data[i]) * k); data[i + 1] = Math.round(data[i + 1] + (t[1] - data[i + 1]) * k); data[i + 2] = Math.round(data[i + 2] + (t[2] - data[i + 2]) * k);
+  }
+  return sharp(data, { raw: { width: W, height: H, channels: 3 } }).png().toBuffer();
+}
+
 async function borderMatches(buf, t) {
   const { data, info } = await sharp(buf).removeAlpha().resize(200, null).raw().toBuffer({ resolveWithObject: true });
   const W = info.width, H = info.height; let bad = 0, n = 0;
@@ -1404,7 +1437,7 @@ app.post('/api/edit', async (req, res) => {
       const __sh = (typeof shadowSrc !== 'undefined' ? String(shadowSrc) : 'auto').toLowerCase();
       const shText = (/ref/.test(__sh) && entry.bg) ? 'a shadow that matches the reference image in shape, softness, direction and strength' : 'one soft, natural contact shadow directly under the product that fades smoothly into the background';
       instruction = [
-        'Image 1 is my product photo. Re-shoot it as a premium e-commerce studio photo of the SAME product.',
+        'Image 1 is my product photo. Re-shoot it from scratch as a brand-new premium e-commerce studio photograph of the SAME product. Do NOT reuse or copy any pixels of the old background or the old shadow — generate a completely new, clean backdrop and a new shadow.',
         'The product must stay identical in every detail: same shape, colour, material and texture, same stitching, sole, hardware and proportions. Keep EXACTLY the same camera angle, framing, size and position in the frame.',
         'BACKGROUND: completely replace the old backdrop with a seamless, perfectly even ' + bgText + ' background from edge to edge. No trace of the old backdrop may remain: no grey patches, no gradient, no vignette, no floor line, no halo around the product.',
         'SHADOW: ' + shText + '. No other shadows.',
@@ -1646,7 +1679,11 @@ app.post('/api/edit', async (req, res) => {
         else if (/grey|gray|f8/.test(__bc)) __t = [248, 248, 248];
         else if (/ref/.test(__bc) && entry && entry.bg && entry.bg.base64) { __t = await refBackdropColor(entry.bg.base64); console.log('  reference backdrop colour: rgb(' + __t.join(',') + ')'); }
         if (!__t && typeof bgCustom !== 'undefined' && String(bgCustom).trim()) { __t = parseColourText(bgCustom); if (__t) console.log('  custom backdrop colour "' + String(bgCustom).trim() + '": rgb(' + __t.join(',') + ')'); }
-        if (__t && String((req.body || {}).bgMethod || 'recreate') === 'recreate' && await borderMatches(outBuf, __t)) { console.log('  recreate: backdrop already correct, no pixel cleanup needed'); __t = null; }
+        if (__t && String((req.body || {}).bgMethod || 'recreate') === 'recreate') {
+          if (await borderMatches(outBuf, __t)) console.log('  recreate: backdrop already correct');
+          else { outBuf = await liftToBackdrop(outBuf, __t); console.log('  recreate: smooth backdrop lift to rgb(' + __t.join(',') + ') — no masking, no cut edges'); }
+          __t = null;
+        }
         if (__t) outBuf = await whitenBackground(outBuf, __t);
       } catch (e) { console.warn('  backdrop fix failed: ' + e.message); } }
     const cleaned = await passthrough(outBuf, targetAspect ? 'image/png' : g.mime);
