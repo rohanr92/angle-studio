@@ -950,7 +950,7 @@ app.post('/api/generate-angle', async (req, res) => {
       productType = 'shoes', prodFit = 'product', prodFitLabel = '',
       neckLabel = 'keep', hemLabel = 'keep',
       angBg = 'white', angBgCustom = '',
-      angLogoId = '', angLogoColor = 'black', angLogoColorCustom = '',
+      angLogoId = '', angLogoColor = 'black', angLogoColorCustom = '', angLogoSize = 'standard',
     } = req.body || {};
     const PP = String(postProcess) === 'on';
 
@@ -1081,13 +1081,16 @@ app.post('/api/generate-angle', async (req, res) => {
       const __isShoe = !__isApparel && !/bag|jewel|accessor|belt|hat/i.test(String(productType || 'shoes'));
       const __common = ' Reproduce the logo 1:1: same words, same spelling, same font, same letter-spacing, same line order and same relative line sizes. Never redraw, re-spell, translate, add or drop letters, and never invent other text. Ignore the background of the logo image; use only its letters/marks. LOGO COLOUR: ' + __col + ', printed as one even colour with crisp sharp edges.';
       if (__isShoe) {
-        lines.push('[[ANGLOGO:' + angLogoId + ']] LOGO ON THE FOOTBED: the FINAL attached image is the brand logo artwork. Print this exact logo on the footbed (insole) of the shoe, the way a premium branded sandal has its logo printed/hot-stamped flat into the footbed surface (not a sticker, not a label, not embossed into the upper).' + __common +
-          ' POSITION: in the heel half of the footbed, centred across the footbed width, with the centre of the logo at about 75% of the footbed length back from the toe (between the arch and the heel cup), clear of the straps and the footbed edges.' +
-          ' ORIENTATION: rotated 90 degrees so every text line runs lengthwise, parallel to the shoe centre line, reading from the heel toward the toe. Seen from directly above with the toe pointing up, the text reads bottom-to-top and the tops of the letters face the left side of the image. If the logo has two or more lines, keep them stacked side by side exactly as in the artwork, the first (main) line on the left and the following line(s) to its right.' +
-          ' SIZE: small and elegant. The longest line of the logo spans about 20-25% of the footbed length, and the whole logo block is about 25-30% of the footbed width at that point. Never oversized.' +
-          ' FINISH: the print sits flat in the footbed surface, follows its curve, and shares its gloss/texture and lighting.' +
-          ' PER ANGLE: keep exactly this position on the footbed and render it with correct perspective for this camera angle. If the footbed cannot be seen from this angle (pure side, back or sole views), do not move the logo anywhere else; it is simply out of view.' +
-          ' Exactly one logo per footbed (on each shoe if a pair is shown). If the product photos already show a logo on the footbed, replace it with this logo in this position. Do not put the logo on the straps, upper, outsole, background, or as a watermark. Change nothing else about the product. [[/ANGLOGO]]');
+        const __sz = ({ small: 'small', standard: 'standard', large: 'large' })[String(angLogoSize || 'standard').toLowerCase()] || 'standard';
+        const __szTxt = { small: 'SMALL: the longest text line spans about 15% of the footbed length and the whole logo block is about 14% of the footbed width.', standard: 'the longest text line spans about 22% of the footbed length and the whole logo block is about 20% of the footbed width (exactly like the map).', large: 'LARGER: the longest text line spans about 30% of the footbed length and the whole logo block is about 27% of the footbed width.' }[__sz];
+        lines.push('[[ANGLOGO:' + angLogoId + ']][[ANGGUIDE:' + __sz + ']] LOGO ON THE FOOTBED. The last TWO attached images are: (A) the brand logo artwork, then (B) a top-down PLACEMENT MAP of the footbed (toe at the top, heel at the bottom) showing exactly where the logo sits, how big it is and which way it faces. Take the letters from A and the position, size and direction from B. The beige footbed shape and plain background in B are only a diagram; never draw them. Print the logo flat into the footbed surface like a premium branded sandal (printed / hot-stamped, not a sticker, not a label).' + __common +
+          ' DIRECTION (most important): every text line runs LENGTHWISE along the footbed, parallel to the line from heel to toe, and reads from the heel toward the toe, exactly as in map B. The text must NEVER run across the width of the footbed (side to side). Not mirrored, not upside down.' +
+          ' POSITION: on the flat heel area of the footbed, centred between the left and right edges of the footbed, with the centre of the logo at about 77% of the footbed length back from the toe. The whole logo must stay fully visible on the flat part of the footbed: never cut off, never touching or running into the raised heel cup, the rim, the straps or the footbed edge.' +
+          ' SIZE: ' + __szTxt + ' Never bigger than that.' +
+          ' PERSPECTIVE: in angled views (3/4, front, high angle) the footbed is seen in perspective; the logo still lies on the footbed near the heel with its text lines pointing toward the toe, so the lettering is foreshortened along the footbed length, exactly as a real print on that footbed would look from this camera position.' +
+          ' FINISH: the print sits flat in the footbed surface and shares its texture and lighting.' +
+          ' HIDDEN VIEWS: if the heel area of the footbed is not visible from this camera angle (pure side, back or sole views), there is NO logo anywhere in the image. Never put the logo on the side wall of the sole, the cork/midsole, the outsole, the straps, the upper or the background, and never as a watermark.' +
+          ' Exactly one logo per footbed (on each shoe if a pair is shown). If the product photos already show a logo on the footbed, replace it with this one in this position. Change nothing else about the product. [[/ANGLOGO]]');
       } else {
         lines.push('[[ANGLOGO:' + angLogoId + ']] LOGO: the FINAL attached image is the brand logo artwork. Apply this exact logo on the product where the brand logo naturally sits (where the product photos show a logo or label; otherwise the inside neck label), small and tasteful, following the fabric/material surface, folds and perspective of this camera angle.' + __common +
           ' Exactly one logo, never on the background or as a watermark. If the logo position is hidden in this angle, leave it out of view. Change nothing else about the product. [[/ANGLOGO]]');
@@ -1393,6 +1396,45 @@ app.post('/api/cutout', upload.fields([{ name: 'image', maxCount: 1 }, { name: '
 
 // ===== patch94: Angles logo store + attach the logo image to the Gemini request =====
 const __angLogos = new Map();
+// patch95: top-down placement map (toe up), logo rotated to read heel -> toe, sized like the reference
+async function __angLogoGuides(raw) {
+  const __sh = require('sharp');
+  const src = await __sh(raw).rotate().resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const W0 = src.info.width, H0 = src.info.height, d = src.data;
+  let transp = 0; for (let i = 3; i < d.length; i += 4) if (d[i] < 200) transp++;
+  const useAlpha = transp > (d.length / 4) * 0.05;
+  let lumSum = 0; for (let i = 0; i < d.length; i += 4) lumSum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+  const darkInk = lumSum / (d.length / 4) > 128;
+  const mask = Buffer.alloc(W0 * H0);
+  for (let p = 0; p < W0 * H0; p++) {
+    const r = d[p * 4], g = d[p * 4 + 1], b = d[p * 4 + 2], a = d[p * 4 + 3];
+    const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+    let v = useAlpha ? a : (darkInk ? 255 - lum : lum);
+    if (!useAlpha) v = Math.max(0, Math.min(255, (v - 40) * 1.4));
+    mask[p] = v;
+  }
+  const trimmed = await __sh(mask, { raw: { width: W0, height: H0, channels: 1 } }).png().toBuffer();
+  let tb; try { tb = await __sh(trimmed).trim({ threshold: 20 }).png().toBuffer(); } catch (e) { tb = trimmed; }
+  const rot = await __sh(tb).rotate(270).png().toBuffer();
+  const rm = await __sh(rot).metadata();
+  const FW = 520, FL = 1300, PAD = 60, CW = FW + PAD * 2, CH = FL + PAD * 2;
+  const outline = 'M260,20 C410,20 490,150 490,330 C490,540 425,670 415,830 C408,985 440,1120 390,1220 C355,1285 165,1285 130,1220 C80,1120 112,985 105,830 C95,670 30,540 30,330 C30,150 110,20 260,20 Z';
+  const out = {};
+  for (const [name, frac] of [['small', 0.15], ['standard', 0.22], ['large', 0.30]]) {
+    let h = Math.round(FL * frac), w = Math.round(h * rm.width / rm.height);
+    const maxW = Math.round(FW * (name === 'small' ? 0.14 : name === 'standard' ? 0.20 : 0.27));
+    if (w > maxW) { w = maxW; h = Math.round(w * rm.height / rm.width); }
+    const alpha = await __sh(rot).resize({ width: Math.max(1, w), height: Math.max(1, h), fit: 'fill' }).extractChannel(0).raw().toBuffer();
+    const ink = Buffer.alloc(w * h * 4);
+    for (let p = 0; p < w * h; p++) { ink[p * 4] = 25; ink[p * 4 + 1] = 25; ink[p * 4 + 2] = 25; ink[p * 4 + 3] = alpha[p]; }
+    const inkPng = await __sh(ink, { raw: { width: w, height: h, channels: 4 } }).png().toBuffer();
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + CW + '" height="' + CH + '"><rect width="100%" height="100%" fill="#ffffff"/><g transform="translate(' + PAD + ',' + PAD + ')"><path d="' + outline + '" fill="#E9DCC3" stroke="#9C8A6A" stroke-width="5"/></g></svg>';
+    const cx = PAD + FW / 2, cy = PAD + Math.round(FL * 0.77);
+    const png = await __sh(Buffer.from(svg)).composite([{ input: inkPng, left: Math.round(cx - w / 2), top: Math.round(cy - h / 2) }]).png().toBuffer();
+    out[name] = png.toString('base64');
+  }
+  return out;
+}
 app.post('/api/angle-logo', upload.single('logo'), async (req, res) => {
   try {
     const f = req.file;
@@ -1407,7 +1449,8 @@ app.post('/api/angle-logo', upload.single('logo'), async (req, res) => {
     const bgc = (!opaqueAll && n && sum / n > 170) ? { r: 60, g: 60, b: 60 } : { r: 255, g: 255, b: 255 };
     const png = await base.flatten({ background: bgc }).extend({ top: 24, bottom: 24, left: 24, right: 24, background: bgc }).png().toBuffer();
     const id = require('crypto').randomUUID();
-    __angLogos.set(id, { base64: png.toString('base64'), mime: 'image/png', at: Date.now() });
+    let guides = {}; try { guides = await __angLogoGuides(raw); } catch (e) { console.warn('  [angles logo] map failed: ' + e.message); }
+    __angLogos.set(id, { base64: png.toString('base64'), mime: 'image/png', at: Date.now(), guides });
     while (__angLogos.size > 40) __angLogos.delete(__angLogos.keys().next().value);
     console.log('  [angles logo] stored ' + id.slice(0, 8));
     res.json({ id });
@@ -1420,7 +1463,7 @@ function __angLogoInject(data) {
   if (wasStr) { if (data.indexOf('[[ANGLOGO:') < 0) return data; try { data = JSON.parse(data); } catch (e) { return data; } }
   else if (typeof data !== 'object' || Buffer.isBuffer(data) || typeof data.pipe === 'function' || (typeof FormData !== 'undefined' && data instanceof FormData)) return data;
   const BLOCK = /\s*\[\[ANGLOGO:[0-9a-f-]{36}\]\][\s\S]*?\[\[\/ANGLOGO\]\]/g;
-  const MARKS = /\s*\[\[\/?ANGLOGO(?::[0-9a-f-]{36})?\]\]/g;
+  const MARKS = /\s*\[\[(?:\/?ANGLOGO(?::[0-9a-f-]{36})?|ANGGUIDE:[a-z]+)\]\]/g;
   if (Array.isArray(data.contents)) {
     for (const c of data.contents) {
       const parts = c && c.parts; if (!Array.isArray(parts)) continue;
@@ -1430,11 +1473,16 @@ function __angLogoInject(data) {
         const m = p.text.match(/\[\[ANGLOGO:([0-9a-f-]{36})\]\]/); if (!m) continue;
         const L = __angLogos.get(m[1]);
         if (!L) { p.text = p.text.replace(BLOCK, ''); console.warn('  [angles logo] logo not found on server (redeployed?) — generated WITHOUT logo. Re-pick the logo and generate again.'); break; }
+        const __gm = p.text.match(/\[\[ANGGUIDE:([a-z]+)\]\]/);
+        const __gb = __gm && L.guides && L.guides[__gm[1]];
         p.text = p.text.replace(MARKS, '');
         const snake = parts.some((q) => q && (q.inline_data || q.file_data));
         const img = snake ? { inline_data: { mime_type: L.mime, data: L.base64 } } : { inlineData: { mimeType: L.mime, data: L.base64 } };
         const imgAfter = parts.slice(i + 1).some((q) => q && (q.inline_data || q.inlineData || q.file_data || q.fileData));
-        if (imgAfter) parts.push(img); else parts.splice(i, 0, img);
+        const __extra = [img];
+        if (__gb) __extra.push(snake ? { inline_data: { mime_type: 'image/png', data: __gb } } : { inlineData: { mimeType: 'image/png', data: __gb } });
+        if (imgAfter) parts.push(...__extra); else parts.splice(i, 0, ...__extra);
+        if (__gb) console.log('  [angles logo] placement map (' + __gm[1] + ') attached');
         console.log('  [angles logo] logo image attached to the Gemini request');
         break;
       }

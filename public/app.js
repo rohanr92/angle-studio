@@ -1470,3 +1470,37 @@
     return _f.call(window, url, opts);
   };
 })();
+
+// ===== patch95: Angles logo size =====
+(function () {
+  var KEY = 'angles_logo_size_v1', size = 'standard';
+  try { size = localStorage.getItem(KEY) || 'standard'; } catch (e) {}
+  var tries = 0;
+  (function wait() {
+    var row = document.getElementById('anglesLogoColorRow');
+    if (!row) { if (++tries < 80) setTimeout(wait, 250); return; }
+    if (document.getElementById('anglesLogoSize')) return;
+    var lab = document.createElement('span');
+    lab.style.cssText = 'font-size:11px;letter-spacing:.08em;text-transform:uppercase;opacity:.7;margin-left:6px;';
+    lab.textContent = 'Logo size';
+    var sel = document.createElement('select');
+    sel.id = 'anglesLogoSize';
+    sel.innerHTML = '<option value="small">Small</option><option value="standard">Standard (like reference)</option><option value="large">Large</option>';
+    sel.value = size; if (!sel.value) sel.value = 'standard';
+    sel.addEventListener('change', function () { size = sel.value; try { localStorage.setItem(KEY, size); } catch (e) {} });
+    row.appendChild(lab); row.appendChild(sel);
+  })();
+  var _f = window.fetch;
+  window.fetch = function (url, opts) {
+    try {
+      var u = typeof url === 'string' ? url : (url && url.url) || '';
+      if (u.indexOf('/api/generate-angle') !== -1 && opts && typeof opts.body === 'string') {
+        var b = JSON.parse(opts.body); b.angLogoSize = size;
+        opts = Object.assign({}, opts, { body: JSON.stringify(b) });
+      } else if (u.indexOf('/api/generate-angle') !== -1 && opts && opts.body instanceof FormData) {
+        opts.body.set('angLogoSize', size);
+      }
+    } catch (e) {}
+    return _f.call(window, url, opts);
+  };
+})();
