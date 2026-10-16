@@ -1349,3 +1349,124 @@
     return _f.call(this, url, opts);
   };
 })();
+
+// ===== patch94: Angles logo option =====
+(function () {
+  var LS = 'angles_logo_v1';
+  function load() { try { return JSON.parse(localStorage.getItem(LS) || '{}') || {}; } catch (e) { return {}; } }
+  function save() { try { localStorage.setItem(LS, JSON.stringify({ data: st.data, name: st.name, color: st.color, custom: st.custom })); } catch (e) { try { localStorage.setItem(LS, JSON.stringify({ color: st.color, custom: st.custom })); } catch (e2) {} } }
+  var st = Object.assign({ data: '', name: '', color: 'black', custom: '' }, load());
+  st.id = ''; st.checked = 0;
+  var _f = window.fetch;
+
+  function build(bar) {
+    if (document.getElementById('anglesLogoFile')) return;
+    var box = document.createElement('div');
+    box.style.cssText = 'grid-column:1/-1;width:100%;display:flex;flex-direction:column;gap:6px;margin-top:4px;';
+    box.innerHTML =
+      '<span style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;opacity:.7;">Logo (optional)</span>' +
+      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+        '<input id="anglesLogoFile" type="file" accept="image/*" style="max-width:210px;">' +
+        '<img id="anglesLogoThumb" alt="" style="display:none;height:34px;max-width:120px;object-fit:contain;border:1px solid #bbb;border-radius:4px;background:repeating-conic-gradient(#ddd 0 25%,#fff 0 50%) 0 0/10px 10px;">' +
+        '<button id="anglesLogoClear" type="button" style="display:none;">Remove logo</button>' +
+      '</div>' +
+      '<div id="anglesLogoColorRow" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;">' +
+        '<span style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;opacity:.7;">Logo colour</span>' +
+        '<select id="anglesLogoColor">' +
+          '<option value="black">Black</option>' +
+          '<option value="white">White</option>' +
+          '<option value="gold">Gold foil</option>' +
+          '<option value="silver">Silver foil</option>' +
+          '<option value="rosegold">Rose gold foil</option>' +
+          '<option value="tan">Tan / brown</option>' +
+          '<option value="navy">Navy</option>' +
+          '<option value="grey">Grey</option>' +
+          '<option value="original">Same as logo image</option>' +
+          '<option value="custom">Custom…</option>' +
+        '</select>' +
+        '<input id="anglesLogoPick" type="color" value="#000000" style="display:none;width:34px;height:26px;padding:0;border:none;background:none;">' +
+        '<input id="anglesLogoCustom" type="text" placeholder="#C9A227 or e.g. matte copper" style="display:none;width:190px;">' +
+      '</div>' +
+      '<span id="anglesLogoInfo" style="font-size:12px;opacity:.75;"></span>';
+    bar.appendChild(box);
+
+    var file = document.getElementById('anglesLogoFile');
+    var thumb = document.getElementById('anglesLogoThumb');
+    var clr = document.getElementById('anglesLogoClear');
+    var row = document.getElementById('anglesLogoColorRow');
+    var sel = document.getElementById('anglesLogoColor');
+    var pick = document.getElementById('anglesLogoPick');
+    var txt = document.getElementById('anglesLogoCustom');
+    var info = document.getElementById('anglesLogoInfo');
+
+    function refresh() {
+      var has = !!st.data;
+      thumb.style.display = clr.style.display = has ? '' : 'none';
+      if (has) thumb.src = st.data;
+      row.style.display = has ? 'flex' : 'none';
+      pick.style.display = txt.style.display = (sel.value === 'custom') ? '' : 'none';
+      info.textContent = has ? ('Logo "' + (st.name || 'logo') + '" will be added in every angle (shoes: on the footbed, heel half, lengthwise).') : '';
+      st.color = sel.value; st.custom = txt.value; save();
+    }
+    sel.value = st.color || 'black'; if (!sel.value) sel.value = 'black';
+    txt.value = st.custom || '';
+    sel.addEventListener('change', refresh);
+    txt.addEventListener('input', function () { var v = txt.value.trim(); if (/^#?[0-9a-f]{6}$/i.test(v)) pick.value = '#' + v.replace('#', '').toLowerCase(); refresh(); });
+    pick.addEventListener('input', function () { txt.value = pick.value.toUpperCase(); refresh(); });
+    clr.addEventListener('click', function () { st.data = ''; st.name = ''; st.id = ''; file.value = ''; refresh(); });
+    file.addEventListener('change', function () {
+      var f = file.files && file.files[0]; if (!f) return;
+      info.textContent = 'reading logo…';
+      var url = URL.createObjectURL(f), img = new Image();
+      img.onload = function () {
+        var k = Math.min(1, 1024 / Math.max(img.naturalWidth, img.naturalHeight));
+        var c = document.createElement('canvas'); c.width = Math.max(1, Math.round(img.naturalWidth * k)); c.height = Math.max(1, Math.round(img.naturalHeight * k));
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        st.data = c.toDataURL('image/png'); st.name = f.name; st.id = ''; st.checked = 0;
+        URL.revokeObjectURL(url); refresh();
+      };
+      img.onerror = function () { info.textContent = 'Could not read that logo image (use PNG or JPG).'; };
+      img.src = url;
+    });
+    refresh();
+  }
+
+  var tries = 0;
+  (function wait() {
+    var bar = document.getElementById('anglesOptionsBar');
+    if (bar) return build(bar);
+    if (++tries < 80) setTimeout(wait, 250);
+  })();
+
+  async function ensureLogo() {
+    if (!st.data) return '';
+    if (st.id) {
+      try { var r = await _f.call(window, '/api/angle-logo/' + st.id); var j = await r.json(); if (j && j.ok) { st.checked = Date.now(); return st.id; } } catch (e) {}
+    }
+    var blob = await (await _f.call(window, st.data)).blob();
+    var fd = new FormData(); fd.append('logo', blob, st.name || 'logo.png');
+    var r2 = await _f.call(window, '/api/angle-logo', { method: 'POST', body: fd });
+    var j2 = await r2.json();
+    if (!j2 || !j2.id) throw new Error((j2 && j2.error) || 'logo upload failed');
+    st.id = j2.id; st.checked = Date.now();
+    return st.id;
+  }
+
+  window.fetch = async function (url, opts) {
+    var u = typeof url === 'string' ? url : (url && url.url) || '';
+    if (u.indexOf('/api/generate-angle') !== -1 && opts && opts.body && st.data) {
+      try {
+        var id = await ensureLogo();
+        var fl = { angLogoId: id, angLogoColor: st.color || 'black', angLogoColorCustom: (st.custom || '').trim() };
+        if (typeof opts.body === 'string') {
+          var b = JSON.parse(opts.body);
+          Object.assign(b, fl);
+          opts = Object.assign({}, opts, { body: JSON.stringify(b) });
+        } else if (opts.body instanceof FormData || opts.body instanceof URLSearchParams) {
+          Object.keys(fl).forEach(function (k) { opts.body.set(k, fl[k]); });
+        }
+      } catch (e) { console.warn('Angles logo:', e); }
+    }
+    return _f.call(window, url, opts);
+  };
+})();

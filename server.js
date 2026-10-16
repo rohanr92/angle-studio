@@ -950,6 +950,7 @@ app.post('/api/generate-angle', async (req, res) => {
       productType = 'shoes', prodFit = 'product', prodFitLabel = '',
       neckLabel = 'keep', hemLabel = 'keep',
       angBg = 'white', angBgCustom = '',
+      angLogoId = '', angLogoColor = 'black', angLogoColorCustom = '',
     } = req.body || {};
     const PP = String(postProcess) === 'on';
 
@@ -1066,6 +1067,32 @@ app.post('/api/generate-angle', async (req, res) => {
       if (String(hemLabel) === 'none') lines.push('It has NO hem or side tag — do NOT add one anywhere.');
       else if (String(hemLabel) === 'remove') lines.push('REMOVE the hem/side tag completely — clean seam, no mark left.');
       lines.push('NEVER add or invent any label, tag, patch or logo the product does not clearly have in the product images.');
+    }
+    // ===== patch94: logo on the product (Angles) =====
+    if (angLogoId && /^[0-9a-f-]{36}$/i.test(String(angLogoId))) {
+      const __lc = String(angLogoColor || 'black').toLowerCase();
+      const __cmap = { black: 'solid black', white: 'clean bright white', gold: 'metallic gold foil (hot-stamped, slight shine)', silver: 'metallic silver foil (hot-stamped, slight shine)', rosegold: 'metallic rose-gold foil (hot-stamped)', tan: 'tan / cognac brown', navy: 'dark navy blue', grey: 'mid grey' };
+      let __col;
+      if (__lc === 'original') __col = 'exactly the same colours as in the logo image';
+      else if (__lc === 'custom') __col = String(angLogoColorCustom || '').replace(/[\r\n"'`\[\]]/g, ' ').trim().slice(0, 80) || 'solid black';
+      else __col = __cmap[__lc] || 'solid black';
+      let __isApparel = false;
+      try { __isApparel = (typeof APPAREL_TYPES !== 'undefined' && APPAREL_TYPES) ? (APPAREL_TYPES.has ? APPAREL_TYPES.has(productType) : (APPAREL_TYPES.includes ? APPAREL_TYPES.includes(productType) : false)) : false; } catch (e) {}
+      const __isShoe = !__isApparel && !/bag|jewel|accessor|belt|hat/i.test(String(productType || 'shoes'));
+      const __common = ' Reproduce the logo 1:1: same words, same spelling, same font, same letter-spacing, same line order and same relative line sizes. Never redraw, re-spell, translate, add or drop letters, and never invent other text. Ignore the background of the logo image; use only its letters/marks. LOGO COLOUR: ' + __col + ', printed as one even colour with crisp sharp edges.';
+      if (__isShoe) {
+        lines.push('[[ANGLOGO:' + angLogoId + ']] LOGO ON THE FOOTBED: the FINAL attached image is the brand logo artwork. Print this exact logo on the footbed (insole) of the shoe, the way a premium branded sandal has its logo printed/hot-stamped flat into the footbed surface (not a sticker, not a label, not embossed into the upper).' + __common +
+          ' POSITION: in the heel half of the footbed, centred across the footbed width, with the centre of the logo at about 75% of the footbed length back from the toe (between the arch and the heel cup), clear of the straps and the footbed edges.' +
+          ' ORIENTATION: rotated 90 degrees so every text line runs lengthwise, parallel to the shoe centre line, reading from the heel toward the toe. Seen from directly above with the toe pointing up, the text reads bottom-to-top and the tops of the letters face the left side of the image. If the logo has two or more lines, keep them stacked side by side exactly as in the artwork, the first (main) line on the left and the following line(s) to its right.' +
+          ' SIZE: small and elegant. The longest line of the logo spans about 20-25% of the footbed length, and the whole logo block is about 25-30% of the footbed width at that point. Never oversized.' +
+          ' FINISH: the print sits flat in the footbed surface, follows its curve, and shares its gloss/texture and lighting.' +
+          ' PER ANGLE: keep exactly this position on the footbed and render it with correct perspective for this camera angle. If the footbed cannot be seen from this angle (pure side, back or sole views), do not move the logo anywhere else; it is simply out of view.' +
+          ' Exactly one logo per footbed (on each shoe if a pair is shown). If the product photos already show a logo on the footbed, replace it with this logo in this position. Do not put the logo on the straps, upper, outsole, background, or as a watermark. Change nothing else about the product. [[/ANGLOGO]]');
+      } else {
+        lines.push('[[ANGLOGO:' + angLogoId + ']] LOGO: the FINAL attached image is the brand logo artwork. Apply this exact logo on the product where the brand logo naturally sits (where the product photos show a logo or label; otherwise the inside neck label), small and tasteful, following the fabric/material surface, folds and perspective of this camera angle.' + __common +
+          ' Exactly one logo, never on the background or as a watermark. If the logo position is hidden in this angle, leave it out of view. Change nothing else about the product. [[/ANGLOGO]]');
+      }
+      console.log('  angles logo: ' + (__isShoe ? 'footbed heel, lengthwise' : 'product label') + ', colour ' + __col);
     }
     const fullPrompt = lines.join(' ');
     console.log('  prompt -> ' + fullPrompt.slice(0, 220) + '…');
@@ -1363,6 +1390,67 @@ app.post('/api/cutout', upload.fields([{ name: 'image', maxCount: 1 }, { name: '
     res.status(200).json({ status: 'FAILED', error: 'Cut-out failed: ' + err.message });
   }
 });
+
+// ===== patch94: Angles logo store + attach the logo image to the Gemini request =====
+const __angLogos = new Map();
+app.post('/api/angle-logo', upload.single('logo'), async (req, res) => {
+  try {
+    const f = req.file;
+    if (!f) return res.status(400).json({ error: 'No logo received.' });
+    const raw = f.buffer || (f.path ? require('fs').readFileSync(f.path) : null);
+    const __sh = require('sharp');
+    const base = __sh(raw).rotate().resize({ width: 1024, height: 1024, fit: 'inside', withoutEnlargement: true });
+    const st = await __sh(await base.clone().png().toBuffer()).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    let sum = 0, n = 0; const d = st.data;
+    for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 128) { sum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]; n++; }
+    const opaqueAll = n >= (d.length / 4) * 0.98;
+    const bgc = (!opaqueAll && n && sum / n > 170) ? { r: 60, g: 60, b: 60 } : { r: 255, g: 255, b: 255 };
+    const png = await base.flatten({ background: bgc }).extend({ top: 24, bottom: 24, left: 24, right: 24, background: bgc }).png().toBuffer();
+    const id = require('crypto').randomUUID();
+    __angLogos.set(id, { base64: png.toString('base64'), mime: 'image/png', at: Date.now() });
+    while (__angLogos.size > 40) __angLogos.delete(__angLogos.keys().next().value);
+    console.log('  [angles logo] stored ' + id.slice(0, 8));
+    res.json({ id });
+  } catch (e) { res.status(500).json({ error: 'Logo upload failed: ' + e.message }); }
+});
+app.get('/api/angle-logo/:id', (req, res) => res.json({ ok: __angLogos.has(String(req.params.id)) }));
+function __angLogoInject(data) {
+  if (!data) return data;
+  const wasStr = typeof data === 'string';
+  if (wasStr) { if (data.indexOf('[[ANGLOGO:') < 0) return data; try { data = JSON.parse(data); } catch (e) { return data; } }
+  else if (typeof data !== 'object' || Buffer.isBuffer(data) || typeof data.pipe === 'function' || (typeof FormData !== 'undefined' && data instanceof FormData)) return data;
+  const BLOCK = /\s*\[\[ANGLOGO:[0-9a-f-]{36}\]\][\s\S]*?\[\[\/ANGLOGO\]\]/g;
+  const MARKS = /\s*\[\[\/?ANGLOGO(?::[0-9a-f-]{36})?\]\]/g;
+  if (Array.isArray(data.contents)) {
+    for (const c of data.contents) {
+      const parts = c && c.parts; if (!Array.isArray(parts)) continue;
+      for (let i = 0; i < parts.length; i++) {
+        const p = parts[i];
+        if (!p || typeof p.text !== 'string') continue;
+        const m = p.text.match(/\[\[ANGLOGO:([0-9a-f-]{36})\]\]/); if (!m) continue;
+        const L = __angLogos.get(m[1]);
+        if (!L) { p.text = p.text.replace(BLOCK, ''); console.warn('  [angles logo] logo not found on server (redeployed?) — generated WITHOUT logo. Re-pick the logo and generate again.'); break; }
+        p.text = p.text.replace(MARKS, '');
+        const snake = parts.some((q) => q && (q.inline_data || q.file_data));
+        const img = snake ? { inline_data: { mime_type: L.mime, data: L.base64 } } : { inlineData: { mimeType: L.mime, data: L.base64 } };
+        const imgAfter = parts.slice(i + 1).some((q) => q && (q.inline_data || q.inlineData || q.file_data || q.fileData));
+        if (imgAfter) parts.push(img); else parts.splice(i, 0, img);
+        console.log('  [angles logo] logo image attached to the Gemini request');
+        break;
+      }
+    }
+  }
+  if (typeof data.prompt === 'string' && data.prompt.indexOf('[[ANGLOGO:') >= 0) data.prompt = data.prompt.replace(BLOCK, '');
+  return wasStr ? JSON.stringify(data) : data;
+}
+try {
+  const __ax = require('axios');
+  __ax.interceptors.request.use((cfg) => { try { cfg.data = __angLogoInject(cfg.data); } catch (e) { console.warn('  [angles logo] ' + e.message); } return cfg; });
+} catch (e) {}
+if (typeof globalThis.fetch === 'function' && !globalThis.__angLogoFetch) {
+  const __of = globalThis.fetch; globalThis.__angLogoFetch = true;
+  globalThis.fetch = function (u, o) { try { if (o && typeof o.body === 'string' && o.body.indexOf('[[ANGLOGO:') >= 0) o = Object.assign({}, o, { body: __angLogoInject(o.body) }); } catch (e) {} return __of.call(this, u, o); };
+}
 
 app.get('/api/recent', (req, res) => {
   const items = [];
