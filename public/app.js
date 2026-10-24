@@ -1611,3 +1611,66 @@
     return _f.call(window, url, opts);
   };
 })();
+
+// ===== patch97: options inside scroll panel =====
+(function () {
+  var IDS = ['anglesOptionsBar', 'jewelleryOptionsBar'];
+  var home = null, moved = false;
+  function scrollerAfter(el) {
+    var all = document.querySelectorAll('body *');
+    var best = null;
+    for (var i = 0; i < all.length; i++) {
+      var n = all[i];
+      if (n.contains(el) || IDS.indexOf(n.id) !== -1) continue;
+      if (!(el.compareDocumentPosition(n) & Node.DOCUMENT_POSITION_FOLLOWING)) continue;
+      var oy = getComputedStyle(n).overflowY;
+      if ((oy === 'auto' || oy === 'scroll') && n.clientHeight > 80) {
+        var r1 = el.getBoundingClientRect(), r2 = n.getBoundingClientRect();
+        var overlap = Math.min(r1.right, r2.right) - Math.max(r1.left, r2.left);
+        if (r1.width > 0 && overlap < r1.width * 0.5) continue;
+        best = n; break;
+      }
+    }
+    return best;
+  }
+  function place() {
+    var ob = document.getElementById('anglesOptionsBar');
+    if (!ob) return false;
+    var jb = document.getElementById('jewelleryOptionsBar');
+    if (!home) home = { parent: ob.parentNode, next: ob.nextSibling };
+    var sc = scrollerAfter(ob);
+    if (!sc) return false;
+    var first = sc.firstElementChild;
+    sc.insertBefore(ob, first);
+    if (jb) sc.insertBefore(jb, ob.nextSibling);
+    [ob, jb].forEach(function (el) {
+      if (!el) return;
+      el.style.boxSizing = 'border-box';
+      el.style.width = '100%';
+      el.style.paddingBottom = '14px';
+      el.style.marginBottom = '14px';
+      el.style.borderBottom = '1px solid rgba(0,0,0,0.08)';
+    });
+    ob.style.paddingTop = '4px';
+    moved = true;
+    return true;
+  }
+  var tries = 0;
+  (function wait() {
+    var ready = document.getElementById('anglesOptionsBar') && (document.getElementById('jewelleryOptionsBar') || tries > 20);
+    if (ready && place()) return;
+    if (++tries < 80) setTimeout(wait, 250);
+  })();
+  var keep = {};
+  setInterval(function () {
+    if (!moved) return;
+    IDS.forEach(function (id) { var el = document.getElementById(id); if (el) keep[id] = el; });
+    var ob = keep.anglesOptionsBar;
+    if (ob && !document.body.contains(ob)) {
+      moved = false;
+      if (home && document.body.contains(home.parent)) home.parent.insertBefore(ob, home.next && home.next.parentNode === home.parent ? home.next : null);
+      if (keep.jewelleryOptionsBar && !document.body.contains(keep.jewelleryOptionsBar)) ob.parentNode.insertBefore(keep.jewelleryOptionsBar, ob.nextSibling);
+      place();
+    }
+  }, 1000);
+})();
