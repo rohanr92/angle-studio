@@ -1504,3 +1504,110 @@
     return _f.call(window, url, opts);
   };
 })();
+
+// ===== patch96: Jewellery tab (Angles engine + jewellery instructions) =====
+(function () {
+  var LS = 'jewellery_opts_v1';
+  var st = { shot: 'auto', type: 'earrings', finish: 'asphoto', note: '' };
+  try { Object.assign(st, JSON.parse(localStorage.getItem(LS) || '{}') || {}); } catch (e) {}
+  function save() { try { localStorage.setItem(LS, JSON.stringify(st)); } catch (e) {} }
+  var on = false, jwBtn = null, angBtn = null, activeCls = '', inactiveCls = '', bar = null;
+  var HIDE_IDS = ['anglesTypeSelect', 'anglesFitSelect', 'anglesFitOther', 'anglesNeckSelect', 'anglesHemSelect'];
+
+  function hideable() {
+    var ob = document.getElementById('anglesOptionsBar'), out = [];
+    HIDE_IDS.forEach(function (id) {
+      var el = document.getElementById(id); if (!el) return;
+      var box = el.closest('label') || el.parentElement;
+      if (box && ob && box !== ob && !box.contains(ob)) out.push(box);
+    });
+    var lf = document.getElementById('anglesLogoFile');
+    if (lf && lf.parentElement && lf.parentElement.parentElement && lf.parentElement.parentElement !== ob) out.push(lf.parentElement.parentElement);
+    return out;
+  }
+  function setMode(v) {
+    on = v;
+    if (bar) bar.style.display = on ? 'flex' : 'none';
+    hideable().forEach(function (el) { el.style.display = on ? 'none' : ''; });
+    if (on) {
+      if (angBtn) { angBtn.className = inactiveCls; angBtn.removeAttribute('aria-selected'); }
+      jwBtn.className = activeCls; jwBtn.setAttribute('aria-selected', 'true');
+    } else {
+      jwBtn.className = inactiveCls; jwBtn.removeAttribute('aria-selected');
+    }
+  }
+
+  function build() {
+    var tabs = document.getElementById('workspaceTabs');
+    var ob = document.getElementById('anglesOptionsBar');
+    if (!tabs || !ob) return false;
+    if (document.getElementById('jewelleryTabBtn')) return true;
+    var btns = Array.prototype.slice.call(tabs.querySelectorAll('button'));
+    angBtn = btns.filter(function (b) { return b.textContent.trim().toLowerCase() === 'angles'; })[0];
+    if (!angBtn) return false;
+    var other = btns.filter(function (b) { return b !== angBtn && b.className !== angBtn.className; })[0] || btns[btns.length - 1];
+    activeCls = angBtn.className; inactiveCls = other ? other.className : angBtn.className;
+    jwBtn = document.createElement('button');
+    jwBtn.type = 'button'; jwBtn.id = 'jewelleryTabBtn'; jwBtn.textContent = 'Jewellery';
+    jwBtn.className = inactiveCls;
+    (btns[btns.length - 1].parentElement || tabs).appendChild(jwBtn);
+    btns.forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (b === angBtn && b.__jwInternal) return;
+        if (on) setMode(false);
+      });
+    });
+    jwBtn.addEventListener('click', function () {
+      if (angBtn.className !== inactiveCls) activeCls = angBtn.className;
+      angBtn.__jwInternal = true; angBtn.click(); angBtn.__jwInternal = false;
+      if (angBtn.className !== inactiveCls) activeCls = angBtn.className;
+      setMode(true);
+      setTimeout(function () { if (on) setMode(true); }, 30);
+    });
+
+    bar = document.createElement('div');
+    bar.id = 'jewelleryOptionsBar';
+    bar.style.cssText = 'display:none;flex-direction:column;gap:8px;padding:8px 0 10px;';
+    var L = 'font-size:11px;letter-spacing:.08em;text-transform:uppercase;opacity:.7;';
+    bar.innerHTML =
+      '<div style="font-weight:600;">Jewellery</div>' +
+      '<div style="font-size:12px;opacity:.75;line-height:1.4;">Product photos = your jewellery (shop screenshots and phone photos are fine: icons, LIVE badges, pouches and reflections are removed). Angle references = product angles you like, or lifestyle photos of a model wearing jewellery.</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
+        '<label style="display:flex;flex-direction:column;gap:4px;"><span style="' + L + '">Shot</span><select id="jwShot">' +
+          '<option value="auto">Auto (from each reference)</option><option value="product">Product angles (studio)</option><option value="lifestyle">Lifestyle (on model)</option></select></label>' +
+        '<label style="display:flex;flex-direction:column;gap:4px;"><span style="' + L + '">Jewellery type</span><select id="jwType">' +
+          '<option value="earrings">Earrings</option><option value="necklace">Necklace / pendant</option><option value="ring">Ring</option><option value="bracelet">Bracelet / bangle</option><option value="anklet">Anklet</option><option value="brooch">Brooch</option><option value="set">Set</option><option value="other">Other</option></select></label>' +
+        '<label style="display:flex;flex-direction:column;gap:4px;"><span style="' + L + '">Metal</span><select id="jwFinish">' +
+          '<option value="asphoto">As in my photos</option><option value="gold">Gold</option><option value="silver">Silver</option><option value="rosegold">Rose gold</option></select></label>' +
+      '</div>' +
+      '<label style="display:flex;flex-direction:column;gap:4px;"><span style="' + L + '">Notes / lifestyle (optional)</span>' +
+        '<textarea id="jwNote" rows="2" placeholder="e.g. lifestyle: woman with hair tucked behind ear, beige blazer, soft warm background" style="width:100%;box-sizing:border-box;"></textarea></label>';
+    ob.parentNode.insertBefore(bar, ob.nextSibling);
+    var sh = document.getElementById('jwShot'), ty = document.getElementById('jwType'), fi = document.getElementById('jwFinish'), no = document.getElementById('jwNote');
+    sh.value = st.shot; ty.value = st.type; fi.value = st.finish; no.value = st.note;
+    if (!sh.value) sh.value = 'auto'; if (!ty.value) ty.value = 'earrings'; if (!fi.value) fi.value = 'asphoto';
+    function upd() { st.shot = sh.value; st.type = ty.value; st.finish = fi.value; st.note = no.value; save(); }
+    [sh, ty, fi].forEach(function (el) { el.addEventListener('change', upd); });
+    no.addEventListener('input', upd);
+    return true;
+  }
+  var tries = 0;
+  (function wait() { if (!build() && ++tries < 80) setTimeout(wait, 250); })();
+
+  var _f = window.fetch;
+  window.fetch = function (url, opts) {
+    try {
+      var u = typeof url === 'string' ? url : (url && url.url) || '';
+      if (on && u.indexOf('/api/generate-angle') !== -1 && opts && opts.body) {
+        var fl = { jwMode: '1', jwShot: st.shot, jwType: st.type, jwFinish: st.finish, jwNote: st.note || '', productType: 'jewellery' };
+        if (typeof opts.body === 'string') {
+          var b = JSON.parse(opts.body); Object.assign(b, fl);
+          opts = Object.assign({}, opts, { body: JSON.stringify(b) });
+        } else if (opts.body instanceof FormData || opts.body instanceof URLSearchParams) {
+          Object.keys(fl).forEach(function (k) { opts.body.set(k, fl[k]); });
+        }
+      }
+    } catch (e) {}
+    return _f.call(window, url, opts);
+  };
+})();

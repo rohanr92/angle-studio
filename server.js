@@ -951,6 +951,7 @@ app.post('/api/generate-angle', async (req, res) => {
       neckLabel = 'keep', hemLabel = 'keep',
       angBg = 'white', angBgCustom = '',
       angLogoId = '', angLogoColor = 'black', angLogoColorCustom = '', angLogoSize = 'standard',
+      jwMode = '', jwShot = 'auto', jwType = 'earrings', jwFinish = 'asphoto', jwNote = '',
     } = req.body || {};
     const PP = String(postProcess) === 'on';
 
@@ -1096,6 +1097,30 @@ app.post('/api/generate-angle', async (req, res) => {
           ' Exactly one logo, never on the background or as a watermark. If the logo position is hidden in this angle, leave it out of view. Change nothing else about the product. [[/ANGLOGO]]');
       }
       console.log('  angles logo: ' + (__isShoe ? 'footbed heel, lengthwise' : 'product label') + ', colour ' + __col);
+    }
+    // ===== patch96: Jewellery tab =====
+    if (String(jwMode || '') === '1') {
+      const __jt = ({ earrings: 'earrings', necklace: 'necklace / pendant', ring: 'ring', bracelet: 'bracelet / bangle', anklet: 'anklet', brooch: 'brooch', set: 'jewellery set', other: 'jewellery piece' })[String(jwType || 'earrings').toLowerCase()] || 'jewellery piece';
+      const __fin = ({ gold: 'polished yellow gold', silver: 'polished silver / white metal', rosegold: 'polished rose gold' })[String(jwFinish || '').toLowerCase()] || '';
+      const __metal = __fin || 'metal';
+      const __shot = ({ auto: 'auto', product: 'product', lifestyle: 'lifestyle' })[String(jwShot || 'auto').toLowerCase()] || 'auto';
+      const __note = String(jwNote || '').replace(/[\r\n]+/g, ' ').replace(/[\x60]/g, ' ').trim().slice(0, 400);
+      for (let i = lines.length - 1; i >= 0; i--) {
+        if (typeof lines[i] !== 'string') continue;
+        if (lines[i].indexOf('[[ANGLOGO:') >= 0) { lines.splice(i, 1); continue; }
+        if (__shot === 'lifestyle' && String(angBg || 'white') === 'white' && /^Background:/.test(lines[i])) { lines.splice(i, 1); continue; }
+        lines[i] = lines[i].replace(/directly under the sole/gi, 'beneath the jewellery').replace(/\bsoles?\b/gi, 'base').replace(/\bfootbeds?\b/gi, 'surface').replace(/\b(shoes?|sandals?|footwear|boots?)\b/gi, 'jewellery');
+      }
+      const __base = 'JEWELLERY (this overrides any footwear or apparel wording above): the product is ' + __jt + '. Reproduce EXACTLY the jewellery shown in the product photos: same shape and silhouette, same proportions, thickness and curvature, same surface details (smooth, hammered, ridged, ruffled, domed), same clasp / hinge / post / lever-back mechanism, same number of pieces (show a pair if the photos show a pair), and the same metal colour' + (__fin ? ' (' + __fin + ')' : '') + '. Do not add stones, engravings, textures or parts that are not in the product photos.';
+      const __clean = ' CLEAN-UP: the product photos may be phone photos or screenshots from online shops. Never reproduce anything that is not the jewellery itself: remove all app or website overlays, icons, buttons, LIVE badges, avatars, magnifier / zoom / heart / share icons, shop logos, watermarks, text, prices, packaging, plastic pouches, bags, boxes, tables, hands, and any reflections of people, rooms, phones, cameras or windows in the metal. Remove dust, scratches, fingerprints and plating flaws.';
+      const __pack = ' PRODUCT SHOT (premium jewellery e-commerce packshot): the piece on its own, resting or standing naturally, as in a professional jewellery studio; mirror-polished metal with clean, smooth, controlled studio reflections (soft white and light-grey gradient highlights with darker edge contrast so the 3D form reads clearly), true-to-life ' + __metal + ' tone (rich and warm, never orange, brassy or greenish), razor-sharp focus across the whole piece, and only a soft natural contact shadow. Centred with comfortable margin, the jewellery filling about 70-80% of the frame.';
+      const __life = ' LIFESTYLE SHOT (premium jewellery brand campaign): the exact jewellery is worn by an elegant female model, as in high-end jewellery advertising. Follow the angle / lifestyle reference image for pose, crop, framing, styling and mood, but replace any jewellery in it with this exact product, worn correctly (earrings in the earlobe, necklace on the neck, ring on the finger, bracelet on the wrist). Natural skin texture, hair styled so the piece is clearly visible, the jewellery at true real-world scale and in sharp focus, flattering soft light, clean uncluttered background (soft, neutral, warm-toned, gently out of focus) unless the reference shows a specific setting. The jewellery is the hero of the image.';
+      let __shotTxt;
+      if (__shot === 'product') __shotTxt = __pack;
+      else if (__shot === 'lifestyle') __shotTxt = __life;
+      else __shotTxt = ' SHOT TYPE: decide from the angle reference image for this frame. If it shows a person / model wearing jewellery, make the LIFESTYLE SHOT; if it shows only a product, make the PRODUCT SHOT. For a LIFESTYLE SHOT ignore the seamless studio Background instruction and use the lifestyle background.' + __pack + __life;
+      lines.push(__base + __clean + __shotTxt + (__note ? ' USER NOTES (follow these): ' + __note + '.' : '') + ' The result must look like a real professional photograph for a luxury jewellery website: no AI artefacts, no warped or melted metal, symmetrical where the product is symmetrical, no text, no logos, no watermarks.');
+      console.log('  jewellery: ' + __jt + ', shot ' + __shot + (__fin ? ', ' + __fin : '') + (__note ? ', notes' : ''));
     }
     const fullPrompt = lines.join(' ');
     console.log('  prompt -> ' + fullPrompt.slice(0, 220) + '…');
