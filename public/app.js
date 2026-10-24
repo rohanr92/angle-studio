@@ -1674,3 +1674,80 @@
     }
   }, 1000);
 })();
+
+// ===== patch98: options card =====
+(function () {
+  function findByText(sel, re) {
+    var els = document.querySelectorAll(sel);
+    for (var i = 0; i < els.length; i++) if (re.test(els[i].textContent.trim())) return els[i];
+    return null;
+  }
+  function build() {
+    var ob = document.getElementById('anglesOptionsBar');
+    var jb = document.getElementById('jewelleryOptionsBar');
+    if (!ob || !jb) return false;
+    if (document.getElementById('optionsCard')) return true;
+    var oy = getComputedStyle(ob.parentElement).overflowY;
+    if (oy !== 'auto' && oy !== 'scroll') return false;
+
+    var apiHead = findByText('h1,h2,h3,h4,h5,h6,legend,strong,div,span', /^G?\s*Google API key$/i);
+    var card = apiHead ? apiHead.parentElement : null;
+    while (card && card.parentElement && card.parentElement !== ob.parentElement && !card.parentElement.contains(ob)) card = card.parentElement;
+    var lab = findByText('label,span,div,p', /^Google model$/i);
+    var sel = null;
+    if (lab) sel = (lab.parentElement && lab.parentElement.querySelector('select')) || (lab.nextElementSibling && lab.nextElementSibling.tagName === 'SELECT' ? lab.nextElementSibling : null);
+    if (!sel) sel = document.querySelector('#workspaceTabs ~ * select, select');
+    var hint = findByText('p,div,span', /^Official Gemini image API/i);
+
+    var wrap = document.createElement('div');
+    wrap.id = 'optionsCard';
+    if (card && card.className) wrap.className = card.className;
+    wrap.style.marginBottom = '16px';
+    var head = apiHead ? apiHead.cloneNode(true) : document.createElement('h3');
+    head.removeAttribute('id');
+    var title = document.createElement('span'); title.id = 'optionsCardTitle'; title.textContent = 'Angle options';
+    var pre = (head.firstElementChild && head.childNodes.length > 1) ? head.firstElementChild : null;
+    if (pre) { pre.textContent = '00'; while (pre.nextSibling) head.removeChild(pre.nextSibling); head.appendChild(document.createTextNode(' ')); head.appendChild(title); }
+    else { head.textContent = ''; head.appendChild(title); }
+    wrap.appendChild(head);
+    ob.parentElement.insertBefore(wrap, ob);
+    wrap.appendChild(jb); wrap.appendChild(ob);
+
+    [ob, jb].forEach(function (el) { el.style.borderBottom = 'none'; el.style.marginBottom = '0'; el.style.paddingBottom = '0'; el.style.paddingTop = '0'; });
+    ob.style.marginTop = '10px'; ob.style.paddingLeft = '0'; ob.style.paddingRight = '0'; jb.style.paddingLeft = '0'; jb.style.paddingRight = '0';
+    var jt = jb.firstElementChild; if (jt && /^Jewellery$/i.test(jt.textContent.trim())) jt.style.display = 'none';
+    var jd = jt && jt.nextElementSibling; if (jd && hint && hint.className) { jd.className = hint.className; jd.removeAttribute('style'); }
+    jb.style.marginTop = '10px';
+
+    var labCls = lab ? lab.className : '';
+    wrap.querySelectorAll('label > span, #anglesLogoColorRow > span, #anglesBgSelect ~ span').forEach(function (sp) {
+      if (sp.id || sp.querySelector('select,input')) return;
+      if (labCls) { sp.className = labCls; sp.removeAttribute('style'); }
+      else { sp.style.cssText = 'font-size:11px;letter-spacing:.08em;text-transform:uppercase;opacity:.7;'; }
+    });
+    var bgSel = document.getElementById('anglesBgSelect');
+    if (bgSel && bgSel.parentElement) {
+      var bl = bgSel.parentElement; bl.style.display = 'flex'; bl.style.flexDirection = 'column'; bl.style.alignItems = 'stretch'; bl.style.gap = '6px'; bl.style.gridColumn = '1 / -1';
+      var row = document.createElement('div'); row.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;';
+      ['anglesBgColor', 'anglesBgCustom', 'anglesBgFile', 'anglesBgSwatch', 'anglesBgInfo'].forEach(function (id) { var e = document.getElementById(id); if (e && e.parentElement === bl) row.appendChild(e); });
+      bl.appendChild(row);
+    }
+    var selCls = sel ? sel.className : '';
+    wrap.querySelectorAll('select, textarea, input[type=text]').forEach(function (f) {
+      if (selCls && !f.className) f.className = selCls;
+      f.style.width = '100%'; f.style.boxSizing = 'border-box'; f.style.minWidth = '0';
+    });
+    ['anglesBgCustom', 'anglesLogoCustom'].forEach(function (id) { var e = document.getElementById(id); if (e) { e.style.width = 'auto'; e.style.flex = '1'; } });
+    wrap.querySelectorAll('label').forEach(function (l) { l.style.minWidth = '0'; });
+
+    setInterval(function () {
+      var obVis = getComputedStyle(ob).display !== 'none';
+      var jbVis = getComputedStyle(jb).display !== 'none';
+      wrap.style.display = (obVis || jbVis) ? '' : 'none';
+      title.textContent = jbVis ? 'Jewellery options' : 'Angle options';
+    }, 300);
+    return true;
+  }
+  var tries = 0;
+  (function wait() { if (!build() && ++tries < 120) setTimeout(wait, 250); })();
+})();
