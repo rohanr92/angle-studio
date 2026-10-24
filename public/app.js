@@ -1751,3 +1751,79 @@
   var tries = 0;
   (function wait() { if (!build() && ++tries < 120) setTimeout(wait, 250); })();
 })();
+
+// ===== patch99: jewellery tab fixes =====
+(function () {
+  var tries = 0;
+  (function hook() {
+    var jw = document.getElementById('jewelleryTabBtn');
+    if (!jw) { if (++tries < 80) setTimeout(hook, 250); return; }
+    jw.addEventListener('click', function (e) { e.stopPropagation(); });
+  })();
+
+  function q(id) { return document.getElementById(id); }
+  function sectionOf(id) { var el = q(id); return el ? el.closest('section') : null; }
+  var saved = null, applied = false;
+  var JW = {
+    angTitle: 'Angle & lifestyle references',
+    angHint: 'Upload example photos: product angles you like, or lifestyle photos of a model wearing jewellery. Each photo becomes one frame of your jewellery.',
+    prodTitle: 'Your jewellery photos',
+    prodHint: 'Up to 6 photos of your jewellery. Shop screenshots and phone photos are fine: icons, LIVE badges, pouches, tables and reflections are removed.',
+    brief: 'Optional. Only product facts, e.g. chunky gold-plated stainless steel hoop earrings, hinged clasp, high polish.'
+  };
+  function grab() {
+    var as = sectionOf('angleThumbs'), ps = sectionOf('refPreviews'), br = q('promptInput');
+    if (!as || !ps) return null;
+    return {
+      as: as, ps: ps, br: br,
+      at: as.querySelector('h2'), ah: as.querySelector('.panel__hint'),
+      pt: ps.querySelector('h2'), ph: ps.querySelector('.panel__hint'),
+      heel: q('heelDropZone') ? q('heelDropZone').parentElement : null,
+      logo: q('logoDropZone') ? q('logoDropZone').parentElement : null
+    };
+  }
+  function apply(on) {
+    var g = grab(); if (!g) return;
+    if (!saved) saved = { at: g.at && g.at.textContent, ah: g.ah && g.ah.textContent, pt: g.pt && g.pt.textContent, ph: g.ph && g.ph.textContent, br: g.br && g.br.placeholder };
+    if (on) {
+      g.as.style.display = '';
+      if (g.at) g.at.textContent = JW.angTitle;
+      if (g.ah) g.ah.textContent = JW.angHint;
+      if (g.pt) g.pt.textContent = JW.prodTitle;
+      if (g.ph) g.ph.textContent = JW.prodHint;
+      if (g.br) g.br.placeholder = JW.brief;
+      if (g.heel) g.heel.style.display = 'none';
+      if (g.logo && g.logo !== g.ps) g.logo.style.display = 'none';
+    } else {
+      if (g.at) g.at.textContent = saved.at;
+      if (g.ah) g.ah.textContent = saved.ah;
+      if (g.pt) g.pt.textContent = saved.pt;
+      if (g.ph) g.ph.textContent = saved.ph;
+      if (g.br) g.br.placeholder = saved.br;
+      if (g.heel) g.heel.style.display = '';
+      if (g.logo && g.logo !== g.ps) g.logo.style.display = '';
+    }
+    applied = on;
+  }
+  var tries2 = 0;
+  (function fixHead() {
+    var t = q('optionsCardTitle');
+    if (!t) { if (++tries2 < 80) setTimeout(fixHead, 250); return; }
+    var old = t.parentElement;
+    if (old && old.tagName !== 'H2' || (old && !old.closest('.panel__head'))) {
+      var hd = document.createElement('header'); hd.className = 'panel__head';
+      var num = document.createElement('span'); num.className = 'panel__num'; num.textContent = '00';
+      var h2 = document.createElement('h2'); h2.appendChild(t);
+      hd.appendChild(num); hd.appendChild(h2);
+      if (old && old.parentElement) old.parentElement.replaceChild(hd, old);
+    }
+    var jb = q('jewelleryOptionsBar');
+    if (jb && jb.children[1] && /Product photos = your jewellery/.test(jb.children[1].textContent)) jb.children[1].style.display = 'none';
+  })();
+
+  setInterval(function () {
+    var jb = q('jewelleryOptionsBar');
+    var on = !!(jb && getComputedStyle(jb).display !== 'none');
+    if (on !== applied) apply(on);
+  }, 250);
+})();
