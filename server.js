@@ -953,6 +953,7 @@ app.post('/api/generate-angle', async (req, res) => {
       angLogoId = '', angLogoColor = 'black', angLogoColorCustom = '', angLogoSize = 'standard',
       jwMode = '', jwShot = 'auto', jwType = 'earrings', jwFinish = 'asphoto', jwNote = '',
       btMode = '', btShot = 'auto', btPres = 'asref', btBuckle = 'asphoto', btNote = '',
+      bgMode2 = '', bagShot = 'auto', bagPres = 'asref', bagHw = 'asphoto', bagPouch = 'keep', bagNote = '',
     } = req.body || {};
     const PP = String(postProcess) === 'on';
 
@@ -1152,6 +1153,42 @@ app.post('/api/generate-angle', async (req, res) => {
       else __shotTxt = ' SHOT TYPE: decide from the angle reference image for this frame. If it shows a person / model wearing a belt or clothes, make the LIFESTYLE SHOT; if it shows only a product, make the PRODUCT SHOT. For a LIFESTYLE SHOT ignore the seamless studio Background instruction and use the lifestyle background.' + __pack + __life;
       lines.push(__base + __clean + __shotTxt + (__note ? ' USER NOTES (follow these): ' + __note + '.' : '') + ' The result must look like a real professional photograph for a premium fashion website: no AI artefacts, no warped buckle or melted leather, straight clean edges and even stitching, no text, no logos, no watermarks.');
       console.log('  belt: shot ' + __shot + ', presentation ' + String(btPres || 'asref') + (__bk ? ', buckle ' + __bk : '') + (__note ? ', notes' : ''));
+    }
+    // ===== patch101: Bags tab =====
+    if (String(bgMode2 || '') === '1') {
+      const __shot = ({ auto: 'auto', product: 'product', lifestyle: 'lifestyle' })[String(bagShot || 'auto').toLowerCase()] || 'auto';
+      const __hw = ({ silver: 'polished silver', brushedsilver: 'brushed silver', gold: 'polished gold', brushedgold: 'brushed gold', gunmetal: 'gunmetal', black: 'matte black' })[String(bagHw || '').toLowerCase()] || '';
+      const __pres = ({
+        front: 'PRESENTATION: the bag standing upright, straight front view, handles / strap raised naturally above the bag.',
+        threeq: 'PRESENTATION: the bag standing upright, three-quarter front view showing the front and one side panel, handles / strap raised naturally.',
+        side: 'PRESENTATION: the bag standing upright, pure side profile showing its depth and gusset.',
+        back: 'PRESENTATION: the bag standing upright, straight back view.',
+        top: 'PRESENTATION: top-down view from directly above, the bag lying or standing so the opening, zip and handles are clearly visible.',
+        inside: 'PRESENTATION: the bag open, seen from above at an angle, showing the interior lining and pockets.',
+        detail: 'PRESENTATION: a close-up detail shot of the hardware, zip, stitching and leather grain filling most of the frame.',
+        asref: 'PRESENTATION: position and angle the bag as in the angle reference image.'
+      })[String(bagPres || 'asref').toLowerCase()] || '';
+      const __pouch = String(bagPouch || 'keep') === 'remove'
+        ? ' Show the bag WITHOUT the small detachable pouch / charm: remove it and its clip completely, leaving the bag body clean where it was attached.'
+        : ' If the product photos show a small attached pouch, charm or key ring, keep it attached in the same place with the same clip.';
+      const __note = String(bagNote || '').replace(/[\r\n]+/g, ' ').replace(/[\x60]/g, ' ').trim().slice(0, 400);
+      for (let i = lines.length - 1; i >= 0; i--) {
+        if (typeof lines[i] !== 'string') continue;
+        if (lines[i].indexOf('[[ANGLOGO:') >= 0) { lines.splice(i, 1); continue; }
+        if (/heel reference image/i.test(lines[i])) { lines.splice(i, 1); continue; }
+        if (__shot === 'lifestyle' && String(angBg || 'white') === 'white' && /^Background:/.test(lines[i])) { lines.splice(i, 1); continue; }
+        lines[i] = lines[i].replace(/directly under the sole/gi, 'beneath the bag').replace(/\bsoles?\b/gi, 'base').replace(/\bfootbeds?\b/gi, 'base').replace(/\blast,\s*/gi, '').replace(/\b(shoes?|sandals?|footwear|boots?)\b/gi, 'bag');
+      }
+      const __base = 'BAG (this overrides any footwear, jewellery, belt or apparel wording above): the product is a handbag. Reproduce EXACTLY the bag shown in the product photos: same silhouette and proportions (height, width, depth, curve of the body and base), same leather type and grain (e.g. pebbled / smooth), same exact colour, same handle or strap (length, width, shape and where it attaches), same zip, closures and tabs, same stitching (colour, length and position, including any decorative pick-stitch), same edge paint, same lining colour where visible, and the same hardware' + (__hw ? ' (' + __hw + ')' : '') + '.' + __pouch + ' Do not add logos, monograms, studs, pockets or details that are not in the product photos.';
+      const __clean = ' CLEAN-UP: the product photos may be supplier or phone photos with props. Never reproduce anything that is not the bag itself: remove watermarks and text (e.g. supplier names in the corner), app overlays, icons, magazines, books, clothes, jackets, chairs, furniture, floors, walls, hands and stands the bag is hanging on. Remove dust, creases, scuffs and marks that are not part of the design, and do not copy uneven lighting or colour casts from the photos. The same applies to the angle / lifestyle reference image (image 1): never copy any overlay, icon, text or watermark from it.';
+      const __pack = ' PRODUCT SHOT (premium e-commerce packshot): ' + __pres + ' The bag stands on its own with natural, full, structured volume (gently filled, no sagging or collapsed sides), handles in a natural relaxed arch, perfectly clean and new. Soft, even studio lighting that shows the leather grain and stitching clearly, true-to-life colour, crisp focus everywhere, clean realistic hardware with soft controlled reflections, only a soft natural contact shadow under the base, the bag centred and filling about 70-80% of the frame.';
+      const __life = ' LIFESTYLE SHOT (premium fashion campaign): the exact bag is carried by a model (on the shoulder, in the hand or in the crook of the arm, as in the reference), at true real-world scale. Follow the lifestyle reference image for pose, crop, outfit and mood, but replace any bag in it with this exact bag. The bag is the hero: sharp focus on it, natural drape and weight, flattering soft light, clean uncluttered background unless the reference shows a specific setting.';
+      let __shotTxt;
+      if (__shot === 'product') __shotTxt = __pack;
+      else if (__shot === 'lifestyle') __shotTxt = __life;
+      else __shotTxt = ' SHOT TYPE: decide from the angle reference image for this frame. If it shows a person / model carrying a bag, make the LIFESTYLE SHOT; if it shows only a bag (even with props around it), make the PRODUCT SHOT on a clean studio background. For a LIFESTYLE SHOT ignore the seamless studio Background instruction and use the lifestyle background.' + __pack + __life;
+      lines.push(__base + __clean + __shotTxt + (__note ? ' USER NOTES (follow these): ' + __note + '.' : '') + ' The result must look like a real professional photograph for a premium fashion website: no AI artefacts, no warped hardware or melted leather, straight clean seams and even stitching, no text, no logos, no watermarks.');
+      console.log('  bag: shot ' + __shot + ', presentation ' + String(bagPres || 'asref') + (__hw ? ', hardware ' + __hw : '') + ', pouch ' + String(bagPouch || 'keep') + (__note ? ', notes' : ''));
     }
     const fullPrompt = lines.join(' ');
     console.log('  prompt -> ' + fullPrompt.slice(0, 220) + '…');

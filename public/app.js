@@ -1957,3 +1957,153 @@
     return _f.call(window, url, opts);
   };
 })();
+
+// ===== patch101: Bags tab =====
+(function () {
+  var LS = 'bag_opts_v1';
+  var st = { shot: 'auto', pres: 'asref', hw: 'asphoto', pouch: 'keep', note: '' };
+  try { Object.assign(st, JSON.parse(localStorage.getItem(LS) || '{}') || {}); } catch (e) {}
+  function save() { try { localStorage.setItem(LS, JSON.stringify(st)); } catch (e) {} }
+  function q(id) { return document.getElementById(id); }
+  var on = false, btn = null, angBtn = null, lifeBtn = null, bar = null, saved = null;
+  var HIDE_IDS = ['anglesTypeSelect', 'anglesFitSelect', 'anglesFitOther', 'anglesNeckSelect', 'anglesHemSelect'];
+  var TXT = {
+    angTitle: 'Angle & lifestyle references',
+    angHint: 'Upload example photos: bag angles you like (front, 3/4, side, top, detail), or lifestyle photos of a model carrying a bag. Each photo becomes one frame of your bag.',
+    prodTitle: 'Your bag photos',
+    prodHint: 'Up to 6 photos of your bag (one colour per run). Supplier and phone photos are fine: watermarks, text, props, clothes and furniture are removed.',
+    brief: 'Optional. Only product facts, e.g. taupe pebbled leather hobo bag, top zip, silver hardware, detachable round coin pouch.'
+  };
+  function hideList() {
+    var ob = q('anglesOptionsBar'), out = [];
+    HIDE_IDS.forEach(function (id) {
+      var el = q(id); if (!el) return;
+      var box = el.closest('label') || el.parentElement;
+      if (box && ob && box !== ob && !box.contains(ob)) out.push(box);
+    });
+    var lf = q('anglesLogoFile');
+    if (lf && lf.parentElement && lf.parentElement.parentElement && lf.parentElement.parentElement !== ob) out.push(lf.parentElement.parentElement);
+    if (q('heelDropZone')) out.push(q('heelDropZone').parentElement);
+    if (q('logoDropZone')) out.push(q('logoDropZone').parentElement);
+    return out;
+  }
+  function sec(id) { var el = q(id); return el ? el.closest('section') : null; }
+  function texts(apply) {
+    var as = sec('angleThumbs'), ps = sec('refPreviews'), br = q('promptInput');
+    if (!as || !ps) return;
+    var at = as.querySelector('h2'), ah = as.querySelector('.panel__hint'), pt = ps.querySelector('h2'), ph = ps.querySelector('.panel__hint');
+    if (apply) {
+      as.style.display = '';
+      if (at) at.textContent = TXT.angTitle; if (ah) ah.textContent = TXT.angHint;
+      if (pt) pt.textContent = TXT.prodTitle; if (ph) ph.textContent = TXT.prodHint;
+      if (br) br.placeholder = TXT.brief;
+    } else if (saved) {
+      if (at) at.textContent = saved.at; if (ah) ah.textContent = saved.ah;
+      if (pt) pt.textContent = saved.pt; if (ph) ph.textContent = saved.ph;
+      if (br) br.placeholder = saved.br;
+    }
+  }
+  function setMode(v) {
+    on = v;
+    if (bar) bar.style.display = on ? 'flex' : 'none';
+    hideList().forEach(function (el) { if (el) el.style.display = on ? 'none' : ''; });
+    texts(on);
+    if (btn) btn.classList.toggle('is-active', on);
+    if (on && angBtn) angBtn.classList.remove('is-active');
+    var t = q('optionsCardTitle'); if (t && on) t.textContent = 'Bag options';
+  }
+
+  function build() {
+    var tabs = q('workspaceTabs'), bt = q('beltTabBtn'), card = q('optionsCard'), jb = q('jewelleryOptionsBar'), bb = q('beltOptionsBar');
+    if (!tabs || !bt || !card || !jb || !bb) return false;
+    if (q('bagTabBtn')) return true;
+    if (getComputedStyle(jb).display !== 'none' || getComputedStyle(bb).display !== 'none') return false;
+    (function () { var as = sec('angleThumbs'), ps = sec('refPreviews'), br = q('promptInput'); if (!as || !ps) return;
+      var at = as.querySelector('h2'), ah = as.querySelector('.panel__hint'), pt = ps.querySelector('h2'), ph = ps.querySelector('.panel__hint');
+      saved = { at: at && at.textContent, ah: ah && ah.textContent, pt: pt && pt.textContent, ph: ph && ph.textContent, br: br && br.placeholder }; })();
+    if (!saved) return false;
+    angBtn = tabs.querySelector('.tab[data-ws="angles"]');
+    lifeBtn = tabs.querySelector('.tab[data-ws="lifestyle"]');
+    if (!angBtn || !lifeBtn) return false;
+    btn = document.createElement('button');
+    btn.type = 'button'; btn.id = 'bagTabBtn'; btn.className = 'tab'; btn.textContent = 'Bags';
+    bt.parentNode.insertBefore(btn, bt.nextSibling);
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      lifeBtn.click();
+      angBtn.click();
+      setMode(true);
+      setTimeout(function () { if (on) setMode(true); }, 40);
+    });
+    Array.prototype.forEach.call(tabs.querySelectorAll('.tab'), function (b) {
+      if (b === btn) return;
+      b.addEventListener('click', function () { if (on && !(b === angBtn && b.__bagInternal) && !(b === lifeBtn && b.__bagInternal)) setMode(false); });
+    });
+    [angBtn, lifeBtn].forEach(function (b) {
+      var prev = b.click.bind(b);
+      b.click = function () { b.__bagInternal = true; try { prev(); } finally { b.__bagInternal = false; } };
+    });
+
+    bar = document.createElement('div');
+    bar.id = 'bagOptionsBar';
+    bar.style.cssText = 'display:none;flex-direction:column;gap:10px;margin-top:10px;';
+    bar.innerHTML =
+      '<div class="spec-row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">' +
+        '<label class="spec-field"><span>Shot</span><select id="bagShot">' +
+          '<option value="auto">Auto (from each reference)</option><option value="product">Product angles (studio)</option><option value="lifestyle">Lifestyle (on model)</option></select></label>' +
+        '<label class="spec-field"><span>Presentation</span><select id="bagPres">' +
+          '<option value="asref">As in the angle reference</option><option value="front">Front</option><option value="threeq">3/4 front</option><option value="side">Side</option><option value="back">Back</option><option value="top">Top-down</option><option value="inside">Open / inside</option><option value="detail">Detail close-up</option></select></label>' +
+        '<label class="spec-field"><span>Hardware</span><select id="bagHw">' +
+          '<option value="asphoto">As in my photos</option><option value="silver">Polished silver</option><option value="brushedsilver">Brushed silver</option><option value="gold">Polished gold</option><option value="brushedgold">Brushed gold</option><option value="gunmetal">Gunmetal</option><option value="black">Matte black</option></select></label>' +
+        '<label class="spec-field"><span>Small pouch / charm</span><select id="bagPouch">' +
+          '<option value="keep">Keep as in my photos</option><option value="remove">Remove it</option></select></label>' +
+      '</div>' +
+      '<label class="spec-field" style="display:flex;flex-direction:column;"><span>Notes / lifestyle (optional)</span>' +
+        '<textarea id="bagNote" rows="2" placeholder="e.g. lifestyle: woman in a white blazer carrying the bag on her shoulder, city street" style="width:100%;box-sizing:border-box;"></textarea></label>';
+    card.insertBefore(bar, bb.nextSibling);
+    var ref = card.querySelector('#jwShot');
+    bar.querySelectorAll('select, textarea').forEach(function (f) { if (ref && ref.className) f.className = ref.className; f.style.width = '100%'; f.style.boxSizing = 'border-box'; f.style.minWidth = '0'; });
+    var sh = q('bagShot'), pr = q('bagPres'), hw = q('bagHw'), po = q('bagPouch'), no = q('bagNote');
+    sh.value = st.shot; pr.value = st.pres; hw.value = st.hw; po.value = st.pouch; no.value = st.note;
+    if (!sh.value) sh.value = 'auto'; if (!pr.value) pr.value = 'asref'; if (!hw.value) hw.value = 'asphoto'; if (!po.value) po.value = 'keep';
+    function upd() { st.shot = sh.value; st.pres = pr.value; st.hw = hw.value; st.pouch = po.value; st.note = no.value; save(); }
+    [sh, pr, hw, po].forEach(function (el) { el.addEventListener('change', upd); });
+    no.addEventListener('input', upd);
+
+    (function () {
+      var t = q('optionsCardTitle'); if (!t) return;
+      var d = Object.getOwnPropertyDescriptor(Node.prototype, 'textContent');
+      Object.defineProperty(t, 'textContent', {
+        configurable: true,
+        get: function () { return d.get.call(this); },
+        set: function (v) {
+          var bg = q('bagTabBtn'), bl = q('beltTabBtn');
+          var f = (bg && bg.classList.contains('is-active')) ? 'Bag options' : (bl && bl.classList.contains('is-active')) ? 'Belt options' : v;
+          if (d.get.call(this) !== f) d.set.call(this, f);
+        }
+      });
+    })();
+    setInterval(function () { if (on) { texts(true); hideList().forEach(function (el) { if (el) el.style.display = 'none'; }); var t = q('optionsCardTitle'); if (t && t.textContent !== 'Bag options') t.textContent = 'Bag options'; var c = q('optionsCard'); if (c) c.style.display = ''; } }, 100);
+    return true;
+  }
+  var tries = 0;
+  (function wait() { if (!build() && ++tries < 120) setTimeout(wait, 250); })();
+
+  var _f = window.fetch;
+  window.fetch = function (url, opts) {
+    try {
+      var u = typeof url === 'string' ? url : (url && url.url) || '';
+      if (on && u.indexOf('/api/generate-angle') !== -1 && opts && opts.body) {
+        var fl = { bgMode2: '1', bagShot: st.shot, bagPres: st.pres, bagHw: st.hw, bagPouch: st.pouch, bagNote: st.note || '' };
+        if (typeof opts.body === 'string') {
+          var b = JSON.parse(opts.body); Object.assign(b, fl); delete b.jwMode; delete b.btMode;
+          opts = Object.assign({}, opts, { body: JSON.stringify(b) });
+        } else if (opts.body instanceof FormData || opts.body instanceof URLSearchParams) {
+          Object.keys(fl).forEach(function (k) { opts.body.set(k, fl[k]); });
+          if (opts.body.delete) { opts.body.delete('jwMode'); opts.body.delete('btMode'); }
+        }
+      }
+    } catch (e) {}
+    return _f.call(window, url, opts);
+  };
+})();
