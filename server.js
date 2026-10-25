@@ -952,6 +952,7 @@ app.post('/api/generate-angle', async (req, res) => {
       angBg = 'white', angBgCustom = '',
       angLogoId = '', angLogoColor = 'black', angLogoColorCustom = '', angLogoSize = 'standard',
       jwMode = '', jwShot = 'auto', jwType = 'earrings', jwFinish = 'asphoto', jwNote = '',
+      btMode = '', btShot = 'auto', btPres = 'asref', btBuckle = 'asphoto', btNote = '',
     } = req.body || {};
     const PP = String(postProcess) === 'on';
 
@@ -1122,6 +1123,35 @@ app.post('/api/generate-angle', async (req, res) => {
       else __shotTxt = ' SHOT TYPE: decide from the angle reference image for this frame. If it shows a person / model wearing jewellery, make the LIFESTYLE SHOT; if it shows only a product, make the PRODUCT SHOT. For a LIFESTYLE SHOT ignore the seamless studio Background instruction and use the lifestyle background.' + __pack + __life;
       lines.push(__base + __clean + __shotTxt + (__note ? ' USER NOTES (follow these): ' + __note + '.' : '') + ' The result must look like a real professional photograph for a luxury jewellery website: no AI artefacts, no warped or melted metal, symmetrical where the product is symmetrical, no text, no logos, no watermarks.');
       console.log('  jewellery: ' + __jt + ', shot ' + __shot + (__fin ? ', ' + __fin : '') + (__note ? ', notes' : ''));
+    }
+    // ===== patch100: Belts tab =====
+    if (String(btMode || '') === '1') {
+      const __shot = ({ auto: 'auto', product: 'product', lifestyle: 'lifestyle' })[String(btShot || 'auto').toLowerCase()] || 'auto';
+      const __bk = ({ brushedsilver: 'brushed (satin) silver', silver: 'polished silver', gold: 'polished gold', brushedgold: 'brushed gold', gunmetal: 'gunmetal', black: 'matte black', brass: 'antique brass' })[String(btBuckle || '').toLowerCase()] || '';
+      const __pres = ({
+        coiled: 'PRESENTATION: the belt rolled into a neat, loose coil standing on its edge, buckle at the front fastened through a hole, the tip tucked through the keepers, the lining visible on the upper loop, exactly like a premium e-commerce belt packshot.',
+        flat: 'PRESENTATION: the belt laid out straight and flat, the full length visible, buckle at one end and tip at the other, perfectly aligned.',
+        buckle: 'PRESENTATION: a close-up of the buckle and keepers filling most of the frame, showing the buckle finish, the leather texture and the stitching in detail.',
+        asref: 'PRESENTATION: arrange the belt as in the angle reference image (coiled, flat, folded or hanging).'
+      })[String(btPres || 'asref').toLowerCase()] || '';
+      const __note = String(btNote || '').replace(/[\r\n]+/g, ' ').replace(/[\x60]/g, ' ').trim().slice(0, 400);
+      for (let i = lines.length - 1; i >= 0; i--) {
+        if (typeof lines[i] !== 'string') continue;
+        if (lines[i].indexOf('[[ANGLOGO:') >= 0) { lines.splice(i, 1); continue; }
+        if (/heel reference image/i.test(lines[i])) { lines.splice(i, 1); continue; }
+        if (__shot === 'lifestyle' && String(angBg || 'white') === 'white' && /^Background:/.test(lines[i])) { lines.splice(i, 1); continue; }
+        lines[i] = lines[i].replace(/directly under the sole/gi, 'beneath the belt').replace(/\bsoles?\b/gi, 'edge').replace(/\bfootbeds?\b/gi, 'surface').replace(/\blast,\s*/gi, '').replace(/\b(shoes?|sandals?|footwear|boots?)\b/gi, 'belt');
+      }
+      const __base = 'BELT (this overrides any footwear, jewellery or apparel wording above): the product is a belt. Reproduce EXACTLY the belt shown in the product photos: same strap width and thickness, same leather type and texture (napped suede vs smooth leather), same exact colour, same edge finish and edge colour, same stitching (thread colour, stitch length and distance from the edge), same lining / reverse-side colour, same number and spacing of holes, same number and shape of keepers (loops), same tip shape, and the same buckle: identical shape, proportions, size relative to the strap, prong and finish' + (__bk ? ' (' + __bk + ')' : '') + '. Do not add logos, embossing, studs or details that are not in the product photos.';
+      const __clean = ' CLEAN-UP: the product photos may be shop screenshots or phone photos. Never reproduce anything that is not the belt itself: remove app or website overlays, icons, buttons, badges, text, prices, watermarks, rounded image frames or lighter background panels, packaging, tags, tables and hands. Remove dust, lint, scratches and creases that are not part of the design. The same applies to the angle / lifestyle reference image (image 1): never copy any overlay, icon, text or watermark from it.';
+      const __pack = ' PRODUCT SHOT (premium e-commerce packshot): ' + __pres + ' Soft, even studio lighting that shows the suede nap or leather grain and the stitching clearly, true-to-life colour, crisp focus on the buckle and strap, a clean realistic buckle finish with soft controlled reflections, only a soft natural contact shadow, the belt centred and filling about 70-80% of the frame.';
+      const __life = ' LIFESTYLE SHOT (premium fashion campaign): the exact belt is worn by a model, threaded through the belt loops of trousers, jeans or a dress at the waist, buckle centred at the front and fastened correctly. Follow the lifestyle reference image for pose, crop, outfit and mood, but replace any belt in it with this exact belt at true real-world scale. The belt is the hero: sharp focus on the buckle and strap, natural fabric folds, flattering soft light, clean uncluttered background unless the reference shows a specific setting.';
+      let __shotTxt;
+      if (__shot === 'product') __shotTxt = __pack;
+      else if (__shot === 'lifestyle') __shotTxt = __life;
+      else __shotTxt = ' SHOT TYPE: decide from the angle reference image for this frame. If it shows a person / model wearing a belt or clothes, make the LIFESTYLE SHOT; if it shows only a product, make the PRODUCT SHOT. For a LIFESTYLE SHOT ignore the seamless studio Background instruction and use the lifestyle background.' + __pack + __life;
+      lines.push(__base + __clean + __shotTxt + (__note ? ' USER NOTES (follow these): ' + __note + '.' : '') + ' The result must look like a real professional photograph for a premium fashion website: no AI artefacts, no warped buckle or melted leather, straight clean edges and even stitching, no text, no logos, no watermarks.');
+      console.log('  belt: shot ' + __shot + ', presentation ' + String(btPres || 'asref') + (__bk ? ', buckle ' + __bk : '') + (__note ? ', notes' : ''));
     }
     const fullPrompt = lines.join(' ');
     console.log('  prompt -> ' + fullPrompt.slice(0, 220) + '…');
